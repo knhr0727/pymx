@@ -157,6 +157,42 @@ def Band_Overlap(Band_lists, slist=None, kticks_label=None,
             plt.savefig('./pymx_band_overlap.png')
     else: plt.show()
 
+def PlotWCC(WCC, save=False, fname=None, figsize=None):
+    if (save):
+        import matplotlib
+        matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    fig = plt.figure(figsize=figsize)
+    ax = plt.subplot()
+    kaxis = WCC[0,:]
+    for i in range(WCC.shape[0]-1):
+        plt.plot(kaxis,WCC[i+1,:],'b.')
+    ax.set_yticklabels([r'$-\pi$','0',r'$\pi$'])
+    ax.set_yticks([-np.pi,0.,np.pi], minor=False)
+    plt.ylim(-np.pi-0.05,np.pi+0.05)
+    plt.xlim(0,kaxis[-1])
+    if(save):
+        if(fname != None):
+            plt.savefig(fname)
+        else:
+            plt.savefig('./pymx_wccplot.png')
+    fig2 = plt.figure(figsize=figsize)
+    ax2 = plt.subplot()
+    wccsum = np.sum(WCC[1:,:],axis=0)
+    for i,x in enumerate(wccsum):
+        wccsum[i] = mod2Pi(x)
+    plt.plot(kaxis,wccsum,'r.')
+    ax2.set_yticklabels([r'$-\pi$','0',r'$\pi$'])
+    ax2.set_yticks([-np.pi,0.,np.pi], minor=False)
+    plt.ylim(-np.pi-0.05,np.pi+0.05)
+    plt.xlim(0,kaxis[-1])
+    if(save):
+        if(fname != None):
+            plt.savefig('sum_'+fname)
+        else:
+            plt.savefig('./sum_pymx_wccplot.png')
+    else: plt.show()
+
 def matrix_visual(M, crange=1., cmap='RdBu_r'):
     import matplotlib.pyplot as plt
     import matplotlib.colors as colors

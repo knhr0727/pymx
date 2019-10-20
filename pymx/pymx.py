@@ -479,10 +479,10 @@ class PyMX(ReadScfout):
         sm = small
         return self.Zk(exp_vec, spin=sp, small=sm)
 
-    def TB_eigen(self, k):
+    def TB_eigen(self, k, spin=False):
         exp_vec = self.exp_vec(k)
-        h = self.Hk(exp_vec)
-        s = self.Sk(exp_vec)
+        h = self.Hk(exp_vec, spin=spin)
+        s = self.Sk(exp_vec, spin=spin)
         eig = scipylinalg.eigh(h, s, \
            overwrite_a=True,overwrite_b=True,turbo=False)
         return eig
@@ -865,11 +865,11 @@ class PyMX(ReadScfout):
         Slist,Xlist,Ylist,Zlist = [],[],[],[]
         for k in klist[:-1]:
             exp_vec = self.exp_vec(k)
-            h = self.Hk(exp_vec)
-            s = self.Sk(exp_vec)
-            x = self.Xk(exp_vec)
-            y = self.Yk(exp_vec)
-            z = self.Zk(exp_vec)
+            h = self.Hk(exp_vec,spin=spin)
+            s = self.Sk(exp_vec,spin=spin)
+            x = self.Xk(exp_vec,spin=spin)
+            y = self.Yk(exp_vec,spin=spin)
+            z = self.Zk(exp_vec,spin=spin)
             Slist.append(s)
             Xlist.append(x)
             Ylist.append(y)
@@ -892,15 +892,18 @@ class PyMX(ReadScfout):
             PI_mat = np.dot(PI_mat,unum_mat)
         return PI_mat
 
-    def WCC(self, G, k0, k1, nG, nk, bands, mat_size=1):
+    def WCC(self, G, k0, k1, nG, nk, bands, spin=False):
         nband = bands[1]-bands[0]+1
         WCCout = np.empty((nband+1,nk),dtype=float)
         kaxis = kpath(k0,k1,nk)
         kaxis_num = np.linspace(0.,np.linalg.norm(k1-k0),nk)
         WCCout[0,:] = kaxis_num
         dk = G/float(nG-1)
-        ms = mat_size
-        edkt = self.phase_tau(dk,mat_size=ms).conjugate()
+        SP = self.SpinP_switch
+        if ((SP==0)or ((SP==1) and bool(spin))):
+            edkt = self.phase_tau(dk,mat_size=1).conjugate()
+        else:
+            edkt = self.phase_tau(dk,mat_size=2).conjugate()
         egvs = (bands[0],bands[1])
         for i,k00 in enumerate(kaxis):
             PI_mat = np.identity(nband,dtype=complex)
@@ -909,11 +912,11 @@ class PyMX(ReadScfout):
             Slist,Xlist,Ylist,Zlist = [],[],[],[]
             for k in klist[:-1]:
                 exp_vec = self.exp_vec(k)
-                h = self.Hk(exp_vec)
-                s = self.Sk(exp_vec)
-                x = self.Xk(exp_vec)
-                y = self.Yk(exp_vec)
-                z = self.Zk(exp_vec)
+                h = self.Hk(exp_vec,spin=spin)
+                s = self.Sk(exp_vec,spin=spin)
+                x = self.Xk(exp_vec,spin=spin)
+                y = self.Yk(exp_vec,spin=spin)
+                z = self.Zk(exp_vec,spin=spin)
                 Slist.append(s)
                 Xlist.append(x)
                 Ylist.append(y)
@@ -939,22 +942,8 @@ class PyMX(ReadScfout):
             WCCout[1:,i] = wcc
         return WCCout
 
-    def PlotWCC(self, WCC, save=False):
-        if (save):
-            import matplotlib
-            matplotlib.use('Agg')
-        import matplotlib.pyplot as plt
-        fig = plt.figure()
-        ax = plt.subplot()
-        kaxis = WCC[0,:]
-        for i in range(WCC.shape[0]-1):
-            plt.plot(kaxis,WCC[i+1,:],'b.')
-        ax.set_yticklabels([r'$-\pi$','0',r'$\pi$'])
-        ax.set_yticks([-np.pi,0.,np.pi], minor=False)
-        plt.ylim(-np.pi-0.05,np.pi+0.05)
-        plt.xlim(0,kaxis[-1])
-        if(save): plt.savefig('./pymx_band.png')
-        else: plt.show()
+    def PlotWCC(self, WCC, save=False, fname=None, figsize=None):
+        PlotWCC(WCC, save=save, fname=fname, figsize=figsize)
 
     def Spintexture(self, k, bands, overlap=True):
         N = bands[1] - bands[0] + 1
