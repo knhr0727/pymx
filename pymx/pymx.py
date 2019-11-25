@@ -629,10 +629,10 @@ class PyMX(ReadScfout):
         return out
 
     def PlotBand(self, Band_list, kticks_label=None, yrange=None,
-                 eV=False, EF=None, highlight=None, save=False,
+                 shift=False, eV=False, EF=None, highlight=None, save=False,
                  fname=None, c1='b', c2='r', figsize=None):
         PlotBand(Band_list, kticks_label= kticks_label,
-                 yrange=yrange, eV=eV, EF=EF, highlight=highlight,
+                 yrange=yrange, shift=shift, eV=eV, EF=EF, highlight=highlight,
                  save=save, fname=fname, c1=c1, c2=c2, figsize=figsize)
 
     def Orbital_weight(self, k, band_idx, orbitals):

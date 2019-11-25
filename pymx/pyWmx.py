@@ -11,7 +11,7 @@ class PyWMX():
         self.a1,self.a2,self.a3 = None,None,None
         self.b1,self.b2,self.b3 = None,None,None
         self.WFNum,self.SCNum,self.Vcell = None,None,None
-        self.spinPol,self.FE = None,None
+        self.spinPol,self.EF = None,None
         self.tau, self.projector = None,None
         self.R_num_mat,self.R_mat,self.H_R,self.R_dege = None,None,None,None
 
@@ -39,7 +39,7 @@ class PyWMX():
         self.b2 = 2.*np.pi*np.cross(self.a3,self.a1)/self.Vcell
         self.b3 = 2.*np.pi*np.cross(self.a1,self.a2)/self.Vcell
         self.spinPol = int(lines[7].split()[-1]) 
-        self.FE = float(lines[8].split()[-1]) 
+        self.EF = float(lines[8].split()[-1]) 
 
         self.R_num_mat = np.empty((3,self.SCNum),dtype=int)
         self.R_mat = np.empty((3,self.SCNum),dtype=float)
@@ -222,10 +222,10 @@ class PyWMX():
         return out
 
     def PlotBand(self, Band_list, kticks_label=None, yrange=None,
-                 eV=False, EF=None, highlight=None, save=False,
+                 shift=False, eV=False, EF=None, highlight=None, save=False,
                  fname=None, c1='b', c2='r'):
         PlotBand(Band_list, kticks_label= kticks_label,
-                 yrange=yrange, eV=eV, EF=EF, highlight=highlight,
+                 shift=shift, yrange=yrange, eV=eV, EF=EF, highlight=highlight,
                  save=save, fname=fname, c1=c1, c2=c2)
 
     def Zak_phase(self, k0, G, n, bands, total=True):

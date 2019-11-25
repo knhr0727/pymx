@@ -54,7 +54,7 @@ def mod2Pi(x, shift=0., two=False):
     elif (x <= (-1.*half_mod+shift)): return mod2Pi(x+2.*half_mod)
     return x
 
-def PlotBand(Band_list, kticks_label=None, yrange=None,
+def PlotBand(Band_list, kticks_label=None, yrange=None, shift=False,
              eV=False, EF=None, highlight=None, save=False,
              fname=None, c1='b', c2='r', figsize=None):
     if (save):
@@ -73,11 +73,14 @@ def PlotBand(Band_list, kticks_label=None, yrange=None,
     i1,i2 = 1,-1
     if (highlight != None):
         i1,i2 = highlight[0],highlight[1]
+    e0 = 0.0
+    if ((EF!=None)and(shift==True)):
+        e0 = EF
     for Bands in Band_list:
         klist = Bands[0]+kstart
         kticks.append(klist[0])
         for i in range(len(Bands)-1):
-            E = Bands[i+1].copy()
+            E = Bands[i+1].copy() - e0
             if (eV == True): E *= Hartree
             col = c1
             if ((i1<=i)and(i<=i2)): col = c2
@@ -89,8 +92,10 @@ def PlotBand(Band_list, kticks_label=None, yrange=None,
     if (kticks_label != None):
         ax.set_xticklabels(kticks_label)
     if (EF != None):
-        if (eV == True): EF *= Hartree
-        plt.plot([0.,kstart],[EF,EF],lw=0.25,color='gray',ls='--')
+        if (eV == True):
+            EF *= Hartree
+            e0 *= Hartree
+        plt.plot([0.,kstart],[EF-e0,EF-e0],lw=0.25,color='gray',ls='--')
     plt.xlim(0,kstart)
     if (yrange != None):
         plt.ylim([yrange[0],yrange[1]])
@@ -102,7 +107,7 @@ def PlotBand(Band_list, kticks_label=None, yrange=None,
     else: plt.show()
 
 def Band_Overlap(Band_lists, slist=None, kticks_label=None,
-                 yrange=None, eV=False, EF=None, 
+                 yrange=None, shift=False, eV=False, EF=None, 
                  save=False, fname=None, defc='b', figsize=None):
     if (save):
         #del(sys.modules['matplotlib'])
@@ -116,13 +121,16 @@ def Band_Overlap(Band_lists, slist=None, kticks_label=None,
     fig = plt.figure(figsize=figsize)
     ax = plt.subplot()
     kticks = []
+    e0 = 0.0
+    if ((EF!=None)and(shift==True)):
+        e0 = EF
     for b,Band_list in enumerate(Band_lists):
         kstart = 0.
         for Bands in Band_list:
             klist = Bands[0]+kstart
             kticks.append(klist[0])
             for i in range(len(Bands)-1):
-                E = Bands[i+1].copy()
+                E = Bands[i+1].copy() - e0
                 if (eV == True): E *= Hartree
                 if (slist != None):
                     plt.plot(klist,E,slist[b])
@@ -145,8 +153,10 @@ def Band_Overlap(Band_lists, slist=None, kticks_label=None,
     if (kticks_label != None):
         ax.set_xticklabels(kticks_label)
     if (EF != None):
-        if (eV == True): EF *= Hartree
-        plt.plot([0.,kstart],[EF,EF],lw=0.25,color='gray',ls='--')
+        if (eV == True):
+            EF *= Hartree
+            e0 *= Hartree
+        plt.plot([0.,kstart],[EF-e0,EF-e0],lw=0.25,color='gray',ls='--')
     plt.xlim(0,kstart)
     if (yrange != None):
         plt.ylim([yrange[0],yrange[1]])
