@@ -1,0 +1,85 @@
+#
+# File Name
+#
+
+System.CurrrentDirectory         ./
+System.Name                      Bi2Se3
+level.of.stdout                  1
+level.of.fileout                 1
+DATA.PATH                        /group1/knhr0727/openMX/DFT_DATA13
+
+#
+# Definition of Atomic Species
+#
+
+Species.Number        2
+<Definition.of.Atomic.Species
+  Bi  Bi8.0-s2p3d2f1    Bi_CA13  #15ele
+  Se  Se7.0-s2p3d2f1    Se_CA13
+Definition.of.Atomic.Species>
+
+#
+# Atoms
+#
+
+Atoms.Number        5
+Atoms.SpeciesAndCoordinates.Unit    frac
+<Atoms.SpeciesAndCoordinates
+ 1  Bi   0.39900000 0.39900000 0.39900000   7.5 7.5 0.0 0.0 0.0 0.0 0
+ 2  Bi   0.60100000 0.60100000 0.60100000   7.5 7.5 0.0 0.0 0.0 0.0 0
+ 3  Se   0.00000000 0.00000000 0.00000000   3.0 3.0 0.0 0.0 0.0 0.0 0
+ 4  Se   0.20600000 0.20600000 0.20600000   3.0 3.0 0.0 0.0 0.0 0.0 0
+ 5  Se   0.79400000 0.79400000 0.79400000   3.0 3.0 0.0 0.0 0.0 0.0 0
+Atoms.SpeciesAndCoordinates>
+Atoms.UnitVectors.Unit        Ang 
+<Atoms.UnitVectors
+  2.39196216525262  0.00000000000000  9.54533333333333
+ -1.19598108262631  2.07150000000000  9.54533333333333
+ -1.19598108262631 -2.07150000000000  9.54533333333333
+Atoms.UnitVectors>
+
+#
+# SCF or Electronic System
+#
+
+scf.XcType                    LSDA-CA
+scf.SpinPolarization          nc
+scf.SpinOrbit.Coupling        on
+scf.Hubbard.U                 OFF
+scf.ElectronicTemperature     300.0
+scf.energysutoff              300.0
+#scf.Ngrid                     32 32 32
+scf.maxIter                   300
+scf.EigenvalueSolver          band
+scf.Kgrid                     11 11 11
+scf.Mixing.Type               rmm-diisk
+scf.Init.Mixing.Weight        0.3
+scf.Min.Mixing.Weight         0.001
+scf.Max.Mixing.Weight         0.400
+scf.Mixing.History            30
+scf.Mixing.StartPulay         6
+scf.Mixing.EveryPulay         1
+scf.criterion                 1.0e-8
+
+scf.restart                   off
+HS.fileout                   on        # on|off, default=off
+
+
+Band.dispersion            off
+Band.Nkpath                9
+<Band.kpath
+ 50  0.000000000000 0.000000000000 0.000000000000   0.500000000000 0.000000000000 0.000000000000  g  L
+ 50  0.500000000000 0.000000000000 0.000000000000   0.500000000000 0.169147688664 -0.169147688664  L  B1
+ 50  0.830852311336 0.500000000000 0.169147688664   0.500000000000 0.500000000000 0.500000000000  B  Z
+ 50  0.500000000000 0.500000000000 0.500000000000   0.000000000000 0.000000000000 0.000000000000  Z  g
+ 50  0.000000000000 0.000000000000 0.000000000000   0.334573844332 0.000000000000 -0.334573844332  g  X
+ 50  0.665426155668 0.334573844332 0.000000000000   0.500000000000 0.500000000000 0.000000000000  Q  F
+ 50  0.500000000000 0.500000000000 0.000000000000   0.665426155668 0.665426155668 0.169147688664  F  P1
+ 50  0.665426155668 0.665426155668 0.169147688664   0.500000000000 0.500000000000 0.500000000000  P1 Z
+ 50  0.500000000000 0.000000000000 0.000000000000   0.830852311336 0.334573844332 0.334573844332  L  P
+Band.kpath>
+
+
+Dos.fileout                off
+Dos.Erange                 -15.0  20.0
+Dos.Kgrid                  5 5 5
