@@ -172,7 +172,7 @@ def PlotWCC(WCC, save=False, fname=None, figsize=None):
         import matplotlib
         matplotlib.use('Agg')
     import matplotlib.pyplot as plt
-    fig = plt.figure(figsize=figsize)
+    fig = plt.figure('WCC',figsize=figsize)
     ax = plt.subplot()
     kaxis = WCC[0,:]
     for i in range(WCC.shape[0]-1):
@@ -186,7 +186,7 @@ def PlotWCC(WCC, save=False, fname=None, figsize=None):
             plt.savefig(fname)
         else:
             plt.savefig('./pymx_wccplot.png')
-    fig2 = plt.figure(figsize=figsize)
+    fig2 = plt.figure('WCC summation',figsize=figsize)
     ax2 = plt.subplot()
     wccsum = np.sum(WCC[1:,:],axis=0)
     for i,x in enumerate(wccsum):
