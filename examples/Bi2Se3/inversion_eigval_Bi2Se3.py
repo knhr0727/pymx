@@ -2,7 +2,7 @@ import pymx
 import numpy as np
 
 scfoutfile = 'Bi2Se3.scfout'
-pm = pymx.PyMX(scfoutfile)
+pm = pymx.PyMX(scfoutfile,ver='3.8')
 pm.default_setting()
 
 center = (pm.a1+pm.a2+pm.a3)/2.

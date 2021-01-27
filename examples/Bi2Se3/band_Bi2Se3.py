@@ -2,7 +2,7 @@ import pymx
 import numpy as np
 
 scfoutfile = 'Bi2Se3.scfout'
-pm = pymx.PyMX(scfoutfile)
+pm = pymx.PyMX(scfoutfile,ver='3.8')
 pm.default_setting()
 
 g  = 0.000000000000*pm.b1 + 0.000000000000*pm.b2 + 0.000000000000*pm.b3 

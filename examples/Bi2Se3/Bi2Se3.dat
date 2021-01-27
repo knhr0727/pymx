@@ -6,7 +6,7 @@ System.CurrrentDirectory         ./
 System.Name                      Bi2Se3
 level.of.stdout                  1
 level.of.fileout                 1
-DATA.PATH                        /group1/knhr0727/openMX/DFT_DATA13
+DATA.PATH                        /path/to/your/openMX/DFT_DATA13
 
 #
 # Definition of Atomic Species
