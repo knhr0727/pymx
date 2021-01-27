@@ -1,7 +1,8 @@
 
 # from 2018/07/23
+# For version 3.9, from 2021/01/27
 
-from .pyread_scfout import *
+from .pyread_scfout import ReadScfout
 from .pymx_common import *
 import numpy as np
 import sys
@@ -17,9 +18,10 @@ import scipy.linalg as scipylinalg
 
 class PyMX(ReadScfout):
     ''' openmx python tool '''
-    def __init__(self, scfout_file):
+    def __init__(self, scfout_file, ver='3.8'):
         ReadScfout.__init__(self)
         self.input_file(scfout_file)
+        self.ver = ver
         #variables of ReadScfout
         self.atomnum, self.SpinP_switch = None, None
         self.Catomnum, self.Latomnum, self.Ratomnum = None, None, None
@@ -38,6 +40,10 @@ class PyMX(ReadScfout):
         self.Valence_Electrons = None
         self.Total_SpinS = None
         self.temporal_input = None
+        if (ver=='3.9'):
+            self.version, self.version_text = None, None
+            self.order_max, self.OLPpo, self.OLPmo = None, None, None
+            self.iDM = None
         #variables of PyMX
         self.a1, self.a2, self.a3 = None, None, None
         self.b1, self.b2, self.b3 = None, None, None
@@ -51,9 +57,23 @@ class PyMX(ReadScfout):
         self.OLPpox_R, self.OLPpoy_R, self.OLPpoz_R= None, None, None
         self.PAO_list, self.atom_list = None, None
         self.PAO_dict, self.basis_list = None, None
+        if (ver=='3.9'):
+            self.OLPmox, self.OLPmoy, self.OLPmoz = None, None, None
+            self.OLPmox_R, self.OLPmoy_R, self.OLPmoz_R = None, None, None
 
     def read_file(self):
-        self.read_scfout(self.scfout_file)
+        if (self.ver=='3.8'):
+            self.read_scfout38(self.scfout_file)
+        elif (self.ver=='3.9'):
+            self.read_scfout39(self.scfout_file)
+            self.OLPpox = self.OLPpo[0][0]
+            self.OLPpoz = self.OLPpo[1][0]
+            self.OLPpoy = self.OLPpo[2][0]
+            self.OLPmox = self.OLPmo[0]
+            self.OLPmoz = self.OLPmo[1]
+            self.OLPmoy = self.OLPmo[2]
+        else:
+            raise Exception("error : version should be ver='3.8' or ver='3.9'")
 
         #lattice unit cell vector
         self.a1 = np.array(self.tv[1][1:])
@@ -215,6 +235,14 @@ class PyMX(ReadScfout):
         self.Hks, self.iHks, self.OLP = None, None, None
         self.OLPpox, self.OLPpoy, self.OLPpoz = None, None, None
         self.DM = None
+        if (self.ver=='3.9'):
+            del(self.OLPpo)
+            del(self.OLPmox)
+            del(self.OLPmoy)
+            del(self.OLPmoz)
+            del(self.iDM)
+            self.OLPpo, self.iDM = None, None
+            self.OLPmox, self.OLPmoy, self.OLPmoz = None, None, None
 
     #get Overlap with position vector matrix component
     # array of R matrices
@@ -248,6 +276,39 @@ class PyMX(ReadScfout):
                 ct_i,ct_f = self.At_range[ct_AN]
                 h_i,h_f = self.At_range[Gh_AN]
                 self.OLPpoz_R[Rn,ct_i:ct_f,h_i:h_f] = self.OLPpoz[ct_AN][h_AN]
+
+    #get Overlap with momentum vector matrix component
+    # array of R matrices
+    def get_P(self):
+        ms = self.mat_size
+        Rs = self.R_size_reduced
+
+        self.OLPmox_R = np.zeros((Rs,ms,ms),dtype=float)
+        for ct_AN in range(self.atomnum+1)[1:]: #i
+            for h_AN in range(self.FNAN[ct_AN]+1): #j
+                Rn = self.R_mapping[self.ncn[ct_AN][h_AN]]
+                Gh_AN = self.natn[ct_AN][h_AN]
+                ct_i,ct_f = self.At_range[ct_AN]
+                h_i,h_f = self.At_range[Gh_AN]
+                self.OLPmox_R[Rn,ct_i:ct_f,h_i:h_f] = self.OLPmox[ct_AN][h_AN]
+
+        self.OLPmoy_R = np.zeros((Rs,ms,ms),dtype=float)
+        for ct_AN in range(self.atomnum+1)[1:]: #i
+            for h_AN in range(self.FNAN[ct_AN]+1): #j
+                Rn = self.R_mapping[self.ncn[ct_AN][h_AN]]
+                Gh_AN = self.natn[ct_AN][h_AN]
+                ct_i,ct_f = self.At_range[ct_AN]
+                h_i,h_f = self.At_range[Gh_AN]
+                self.OLPmoy_R[Rn,ct_i:ct_f,h_i:h_f] = self.OLPmoy[ct_AN][h_AN]
+
+        self.OLPmoz_R = np.zeros((Rs,ms,ms),dtype=float)
+        for ct_AN in range(self.atomnum+1)[1:]: #i
+            for h_AN in range(self.FNAN[ct_AN]+1): #j
+                Rn = self.R_mapping[self.ncn[ct_AN][h_AN]]
+                Gh_AN = self.natn[ct_AN][h_AN]
+                ct_i,ct_f = self.At_range[ct_AN]
+                h_i,h_f = self.At_range[Gh_AN]
+                self.OLPmoz_R[Rn,ct_i:ct_f,h_i:h_f] = self.OLPmoz[ct_AN][h_AN]
 
     def default_setting(self):
         self.read_file()
