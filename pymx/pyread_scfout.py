@@ -7,6 +7,17 @@ import struct
 import copy
 import numpy as np
 
+#
+# Endianness control 
+#
+# If you run pymx in the same machine that produce your scfout file,
+# you don't have to consider the endianness issue.
+# If you know the endianness of your scfout binary file and it does not
+# match your machine, please control the endianness by the following
+# parameter "edn". 
+# edn = '<' : scfout written in little endian / '>' : big endian
+edn = ''   
+
 class ReadScfout:
     '''read_scfout'''
 
@@ -23,7 +34,7 @@ class ReadScfout:
         sizeof_char = 1 #c
         
         def fmtstr(i,f): #integer and format string
-             return str(i)+f
+             return edn+str(i)+f
         
         #  /****************************************************
         # int atomnun;
@@ -43,7 +54,7 @@ class ReadScfout:
         #     grobal index of atom runs
         #     Catomnum -> Catomnum + Latomnum -> Catomnum + Latomnum + Ratomnum
         #  ****************************************************/
-        i_vec = struct.unpack('6i',f.read(sizeof_int*6))
+        i_vec = struct.unpack(edn+'6i',f.read(sizeof_int*6))
         atomnum      = i_vec[0]
         SpinP_switch = i_vec[1]
         Catomnum =     i_vec[2]
@@ -65,7 +76,7 @@ class ReadScfout:
         #  ****************************************************/
         atv = []
         for Rn in range(TCpyCell+1):
-            un_pack = struct.unpack('4d',f.read(sizeof_double*4))
+            un_pack = struct.unpack(edn+'4d',f.read(sizeof_double*4))
             atv.append(list(un_pack))
         atv = np.array(atv)
         self.atv = atv
@@ -76,7 +87,7 @@ class ReadScfout:
         #  ****************************************************/
         atv_ijk = []
         for Rn in range(TCpyCell+1):
-            un_pack = struct.unpack('4i',f.read(sizeof_int*4))
+            un_pack = struct.unpack(edn+'4i',f.read(sizeof_int*4))
             atv_ijk.append(list(un_pack))
         atv_ijk = np.array(atv_ijk)
         self.atv_ijk = atv_ijk     
@@ -135,7 +146,7 @@ class ReadScfout:
         #  ****************************************************/
         tv = [[0.,0.,0.,0.]] #dummy
         for i in range(3):
-            un_pack = struct.unpack('4d',f.read(sizeof_double*4))
+            un_pack = struct.unpack(edn+'4d',f.read(sizeof_double*4))
             tv.append(list(un_pack))
         tv = np.array(tv)
         self.tv = tv     
@@ -148,7 +159,7 @@ class ReadScfout:
         #  ****************************************************/
         rtv = [[0.,0.,0.,0.]] #dummy
         for i in range(3):
-            un_pack = struct.unpack('4d',f.read(sizeof_double*4))
+            un_pack = struct.unpack(edn+'4d',f.read(sizeof_double*4))
             rtv.append(list(un_pack))
         rtv = np.array(rtv)
         self.rtv = rtv     
@@ -159,7 +170,7 @@ class ReadScfout:
         #  ****************************************************/
         Gxyz = [[0.]*60] #dummy
         for ct_AN in range(atomnum+1)[1:]:
-            un_pack = struct.unpack('4d',f.read(sizeof_double*4))
+            un_pack = struct.unpack(edn+'4d',f.read(sizeof_double*4))
             Gxyz.append(list(un_pack)+[0.]*56)
         Gxyz = np.array(Gxyz)
         self.Gxyz = Gxyz     
@@ -367,7 +378,7 @@ class ReadScfout:
         # int Solver;
         #  method for solving eigenvalue problem
         #  ****************************************************/
-        i_vec = struct.unpack('1i',f.read(sizeof_int*1))
+        i_vec = struct.unpack(edn+'1i',f.read(sizeof_int*1))
         Solver = i_vec[0]
         self.Solver = Solver
         
@@ -383,7 +394,7 @@ class ReadScfout:
         # double Total_SpinS;
         #  total value of Spin (2*Total_SpinS = muB)
         #  ****************************************************/
-        d_vec = struct.unpack('10d',f.read(sizeof_double*10))
+        d_vec = struct.unpack(edn+'10d',f.read(sizeof_double*10))
         ChemP  = d_vec[0]
         E_Temp = d_vec[1]
         dipole_moment_core = np.array([0.,d_vec[2],d_vec[3],d_vec[4]])
@@ -401,7 +412,7 @@ class ReadScfout:
         #  /****************************************************
         #      input file 
         #  ****************************************************/
-        i_vec = struct.unpack('1i',f.read(sizeof_int*1))
+        i_vec = struct.unpack(edn+'1i',f.read(sizeof_int*1))
         num_lines = i_vec[0]
         temporal_input = []
         for i in range(num_lines+1)[1:]:
@@ -432,17 +443,6 @@ class ReadScfout:
         sizeof_int = 4 #i
         sizeof_double = 8 #d
         sizeof_char = 1 #c
-        
-        #
-        # Endianness control 
-        #
-        # If you run pymx in the same machine that produce your scfout file,
-        # you don't have to consider the endianness issue.
-        # If you know the endianness of your scfout binary file and it does not
-        # match your machine, please control the endianness by the following
-        # parameter "edn".
-        # edn = '<' : little endian / '>' : big endian
-        edn = ''   
         
         def fmtstr(i,f): #integer and format string
              return edn+str(i)+f
