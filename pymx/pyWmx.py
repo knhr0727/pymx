@@ -13,7 +13,8 @@ class PyWMX():
         self.WFNum,self.SCNum,self.Vcell = None,None,None
         self.spinPol,self.EF = None,None
         self.tau, self.projector = None,None
-        self.R_num_mat,self.R_mat,self.H_R,self.R_dege = None,None,None,None
+        self.R_num_mat,self.R_mat,self.R_dege = None,None,None
+        self.H_R1,self.H_R2 = None,None
 
     basis_num = {'s':1, 'p':3, 'px':1, 'py':1, 'pz':1, 'd':5,\
                  'dz2':1, 'dx2-y2':1, 'dxy':1, 'dxz':1, 'dyz':1, 'f':7,\
@@ -40,13 +41,17 @@ class PyWMX():
         self.b3 = 2.*np.pi*np.cross(self.a1,self.a2)/self.Vcell
         self.spinPol = int(lines[7].split()[-1]) 
         self.EF = float(lines[8].split()[-1]) 
+        SP = self.spinPol
 
         self.R_num_mat = np.empty((3,self.SCNum),dtype=int)
         self.R_mat = np.empty((3,self.SCNum),dtype=float)
-        self.H_R = np.empty((self.SCNum,self.WFNum,self.WFNum),dtype=complex)
+        self.H_R1 = np.empty((self.SCNum,self.WFNum,self.WFNum),dtype=complex)
+        if (SP==2):
+            self.H_R2 = np.empty((self.SCNum,self.WFNum,self.WFNum),dtype=complex)
         self.R_dege = np.empty(self.SCNum,dtype=int)
         i_R = -1
-        for line in lines[9:]:
+        line_spin = self.SCNum*(self.WFNum*self.WFNum+1)
+        for line in lines[9:9+line_spin]:
             spl = line.split()
             if (spl[0] == 'R'):
                 i_R += 1
@@ -54,8 +59,18 @@ class PyWMX():
                 self.R_dege[i_R] = int(spl[6])
                 dege = float(spl[6])
             elif (len(spl) == 4):
-                self.H_R[i_R,int(spl[0])-1,int(spl[1])-1] = \
+                self.H_R1[i_R,int(spl[0])-1,int(spl[1])-1] = \
                     (float(spl[2]) + 1.j*float(spl[3])) / dege
+        if (SP==2):
+            i_R = -1
+            for line in lines[9+line_spin:9+2*line_spin]:
+                spl = line.split()
+                if (spl[0] == 'R'):
+                    i_R += 1
+                    dege = float(spl[6])
+                elif (len(spl) == 4):
+                    self.H_R2[i_R,int(spl[0])-1,int(spl[1])-1] = \
+                        (float(spl[2]) + 1.j*float(spl[3])) / dege
 
         for i_R in range(self.SCNum):
             Ns = self.R_num_mat[:,i_R].astype(float)
@@ -140,13 +155,16 @@ class PyWMX():
         self.tau = tau
 
     #phase factor exp(ik dot tau)matrix from the basis tau
-    def phase_tau(self, k):
+    def phase_tau(self, k, mat_size=1):
         N = self.WFNum
         ekt = np.zeros((N,N),dtype=complex)
         for i in range(N):
             t = self.tau[i] 
             kdott = np.dot(k,t)
             ekt[i,i] = np.exp(1.j*kdott)
+        if (mat_size != 1):
+            I = np.identity(2,dtype=complex)
+            ekt = np.kron(I,ekt)
         return ekt
 
     def kdotR_vec(self, k):
@@ -155,19 +173,43 @@ class PyWMX():
     def exp_vec(self, k):
         return np.exp(1.j*np.dot(k,self.R_mat))
 
-    def Hk(self, exp_vec):
-        h = np.tensordot(exp_vec,self.H_R,axes=((0),(0)))
-        return h
+    def Hk(self, exp_vec, spin=False):
+        SP = self.spinPol
+        if (SP==1):
+            h = np.tensordot(exp_vec,self.H_R1,axes=((0),(0)))
+            return h
+        elif (SP==2):
+            if (spin==False):
+                h1 = np.tensordot(exp_vec,self.H_R1,axes=((0),(0)))
+                h2 = np.tensordot(exp_vec,self.H_R2,axes=((0),(0)))
+                zero = np.zeros(h1.shape,dtype=complex)
+                return np.block([[h1,zero],[zero,h2]])
+            else:
+                if (spin>0):
+                    h1 = np.tensordot(exp_vec,self.H_R1,axes=((0),(0)))
+                    return h1
+                elif (spin<0):
+                    h2 = np.tensordot(exp_vec,self.H_R2,axes=((0),(0)))
+                    return h2
+                else:
+                    raise Exception("error : spin of Hk")
 
-    def Hk_kvec(self, k):
+    def Hk_kvec(self, k, spin=False):
         exp_vec = np.exp(1.j*np.dot(k,self.R_mat))
-        return self.Hk(exp_vec)
+        sp = spin
+        return self.Hk(exp_vec, spin=sp)
 
-    def Hk_cellperiodic(self, k):
+    def Hk_cellperiodic(self, k, spin=False):
         if (self.tau != None):
+            SP = self.spinPol
             exp_vec = np.exp(1.j*np.dot(k,self.R_mat))
-            H = self.Hk(exp_vec)
-            U = self.phase_tau(k)
+            sp = spin
+            H = self.Hk(exp_vec, spin=sp)
+            if ((SP==1)or(spin==False)):
+                ms = 1
+            else:
+                ms = 2
+            U = self.phase_tau(k, mat_size=ms)
             return np.linalg.multi_dot([U.conjugate(),H,U])
         else:
             raise Exception("tau is not defined\n")
@@ -186,7 +228,7 @@ class PyWMX():
         R = self.R_mat[:,i_R]
         print("R : %.10f  %.10f  %.10f"%(R[0],R[1],R[2]))
         print("H(R)")
-        H = self.H_R[i_R,:,:]
+        H = self.H_R1[i_R,:,:]
         for i in range(self.WFNum):
             for j in range(self.WFNum):
                 v = H[i,j]
@@ -200,7 +242,7 @@ class PyWMX():
         if (type(i_R) is int):
             self.cell_i_info(i_R)
 
-    def Band(self, k1, k2, n):
+    def Band(self, k1, k2, n, spin=False):
         path = kpath(k1,k2,n)
         k = 0.0
         klist = []
@@ -210,7 +252,7 @@ class PyWMX():
             k += np.linalg.norm(kvec-kbefore)
             klist.append(k)
             exp_vec = self.exp_vec(kvec)
-            h = self.Hk(exp_vec)
+            h = self.Hk(exp_vec, spin=spin)
             w = np.linalg.eigvalsh(h)
             Elists.append(w)
             kbefore = kvec
