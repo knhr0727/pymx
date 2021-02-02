@@ -68,6 +68,9 @@ class ReadScfout:
         self.Latomnum =     Latomnum 
         self.Ratomnum =     Ratomnum 
         self.TCpyCell =     TCpyCell 
+        if (self.SpinP_switch>=4):
+            print("Error: version mismatch. ver=='3.8' now")
+            quit()
 
         #  /****************************************************
         #    double atv[TCpyCell+1][4];

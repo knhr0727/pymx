@@ -222,12 +222,12 @@ class PyWMX():
         else:
             return None
 
-    def cell_i_info(self, i_R):
+    def cell_i_info(self, i_R, spin=False):
         Ns = self.R_num_mat[:,i_R]
         print("R indices : %d  %d  %d"%(Ns[0],Ns[1],Ns[2]))
         R = self.R_mat[:,i_R]
         print("R : %.10f  %.10f  %.10f"%(R[0],R[1],R[2]))
-        print("H(R)")
+        print("H(R) spin1")
         H = self.H_R1[i_R,:,:]
         for i in range(self.WFNum):
             for j in range(self.WFNum):
@@ -236,6 +236,17 @@ class PyWMX():
                     print("%.10f+j%.10f"%(v.real,v.imag)),
                 else:
                     print("%.10f+j%.10f"%(v.real,v.imag))
+        SP = self.spinPol
+        if (self.spinPol==2):
+            print("H(R) spin2")
+            H = self.H_R1[i_R,:,:]
+            for i in range(self.WFNum):
+                for j in range(self.WFNum):
+                    v = H[i,j]
+                    if (j < self.WFNum-1):
+                        print("%.10f+j%.10f"%(v.real,v.imag)),
+                    else:
+                        print("%.10f+j%.10f"%(v.real,v.imag))
 
     def cell_info(self, n1, n2, n3):
         i_R = self.find_cell(n1,n2,n3)
