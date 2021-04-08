@@ -276,10 +276,10 @@ class PyWMX():
 
     def PlotBand(self, Band_list, kticks_label=None, yrange=None,
                  shift=False, eV=False, EF=None, highlight=None, save=False,
-                 fname=None, c1='b', c2='r'):
+                 fname=None, c1='b', c2='r', figsize=None):
         PlotBand(Band_list, kticks_label= kticks_label,
                  shift=shift, yrange=yrange, eV=eV, EF=EF, highlight=highlight,
-                 save=save, fname=fname, c1=c1, c2=c2)
+                 save=save, fname=fname, c1=c1, c2=c2, figsize=figsize)
 
     def Zak_phase(self, k0, G, n, bands, total=True):
         dk = G/float(n-1)
