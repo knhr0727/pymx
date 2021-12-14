@@ -1011,10 +1011,10 @@ class ReadScfout:
                     print("\n")
 
     def print_OLPpoz(self):
-	try:
-	    OLPpoz = self.OLPpo[2][0]
-	except:
-	    OLPpoz = self.OLPpoz
+        try:
+            OLPpoz = self.OLPpo[2][0]
+        except:
+            OLPpoz = self.OLPpoz
         print("\n\nOverlap matrix with position operator z\n")
         for ct_AN in range(self.atomnum+1)[1:]: #i
             TNO1 = self.Total_NumOrbs[ct_AN]
