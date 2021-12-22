@@ -476,7 +476,7 @@ class ReadScfout:
 
         atomnum      = i_vec[0]
         SpinP_switch = i_vec[1]%4
-        version  =     i_vec[1]/4
+        version  = int(i_vec[1]/4)
         Catomnum =     i_vec[2]
         Latomnum =     i_vec[3]
         Ratomnum =     i_vec[4]
