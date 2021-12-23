@@ -18,10 +18,11 @@ import scipy.linalg as scipylinalg
 
 class PyMX(ReadScfout):
     ''' openmx python tool '''
-    def __init__(self, scfout_file, ver='3.8'):
+    def __init__(self, scfout_file, ver='3.8', memory_save=False):
         ReadScfout.__init__(self)
         self.input_file(scfout_file)
         self.ver = ver
+        self.memory_save = memory_save
         #variables of ReadScfout
         self.atomnum, self.SpinP_switch = None, None
         self.Catomnum, self.Latomnum, self.Ratomnum = None, None, None
@@ -51,15 +52,24 @@ class PyMX(ReadScfout):
         self.mat_size, self.AtOrb, self.At_range = None, None, None
         self.Rn_reduced, self.R_size_reduced = None, None
         self.R_mapping, self.R_mat_reduced = None, None
+        self.MS_Rn, self.MS_ct_i, self.MS_ct_f = None, None, None
+        self.MS_h_i, self.MS_h_f = None, None 
         self.H_R1, self.H_R2, self.H_R3, self.H_R4 =None,None,None,None
+        self.MS_H_R1, self.MS_H_R2 = None, None
+        self.MS_H_R3, self.MS_H_R4 = None, None
         self.iH_R1, self.iH_R2, self.iH_R3 = None,None,None
+        self.MS_iH_R1, self.MS_iH_R2, self.MS_iH_R3 = None,None,None
         self.OLP_R = None
+        self.MS_OLP_R = None
         self.OLPpox_R, self.OLPpoy_R, self.OLPpoz_R= None, None, None
+        self.MS_OLPpox_R, self.MS_OLPpoy_R, self.MS_OLPpoz_R= None, None, None
         self.PAO_list, self.atom_list = None, None
         self.PAO_dict, self.basis_list = None, None
         if (ver=='3.9'):
             self.OLPmox, self.OLPmoy, self.OLPmoz = None, None, None
             self.OLPmox_R, self.OLPmoy_R, self.OLPmoz_R = None, None, None
+            self.MS_OLPmox_R, self.MS_OLPmoy_R, self.MS_OLPmoz_R \
+                                              = None, None, None
 
     def read_file(self):
         if (self.ver=='3.8'):
@@ -134,61 +144,136 @@ class PyMX(ReadScfout):
             before += orb
         self.At_range = np.array(At_range)
 
-        #hopping matrix component
-        # array of R matrices
-        H_R_list = []
-        for spin in range(self.SpinP_switch+1):
-            H_R = np.zeros((Rs,ms,ms),dtype=float)
+        # indices for construction of k-matrix
+        if self.memory_save:
+            MS_Rn = []    # cell number array
+            MS_ct_i = []  # initial index of atom i (row)
+            MS_ct_f = []  # final index of atom i   (row)
+            MS_h_i = []   # initial index of atom j (column)
+            MS_h_f = []   # final index of atom j   (column)
             for ct_AN in range(self.atomnum+1)[1:]: #i
                 for h_AN in range(self.FNAN[ct_AN]+1): #j
                     Rn = self.R_mapping[self.ncn[ct_AN][h_AN]]
                     Gh_AN = self.natn[ct_AN][h_AN]
                     ct_i,ct_f = self.At_range[ct_AN]
                     h_i,h_f = self.At_range[Gh_AN]
-                    H_R[Rn,ct_i:ct_f,h_i:h_f] = self.Hks[spin][ct_AN][h_AN]
-            H_R_list.append(H_R)
-        SP = self.SpinP_switch
-        self.H_R1 = H_R_list[0]
-        if (SP==1):
-            self.H_R2 = H_R_list[1]
-        elif (SP==3):
-            self.H_R2 = H_R_list[1]
-            self.H_R3 = H_R_list[2]
-            self.H_R4 = H_R_list[3]
-        del(H_R_list)
+                    MS_Rn.append(Rn) 
+                    MS_ct_i.append(ct_i)
+                    MS_ct_f.append(ct_f) 
+                    MS_h_i.append(h_i) 
+                    MS_h_f.append(h_f) 
+            self.MS_Rn   = np.array(MS_Rn)  
+            self.MS_ct_i = np.array(MS_ct_i)
+            self.MS_ct_f = np.array(MS_ct_f)
+            self.MS_h_i  = np.array(MS_h_i) 
+            self.MS_h_f  = np.array(MS_h_f) 
 
-        #imagianry part of hopping matrix component
-        # array of R matrices
-        iH_R_list = []
-        for spin in range(3):
-            iH_R = np.zeros((Rs,ms,ms),dtype=float)
+        if self.memory_save:
+            #hopping matrix component
+            H_R_list = []
+            for spin in range(self.SpinP_switch+1):
+                H_R = []
+                for ct_AN in range(self.atomnum+1)[1:]: #i
+                    for h_AN in range(self.FNAN[ct_AN]+1): #j
+                        H_R.append(self.Hks[spin][ct_AN][h_AN])
+                H_R_list.append(copy.deepcopy(H_R))
+            del(H_R)
+            del(self.Hks)
+            self.Hks = None
+            SP = self.SpinP_switch
+            self.MS_H_R1 = H_R_list.pop(0)
+            if (SP==1):
+                self.MS_H_R2 = H_R_list.pop(0)
+            elif (SP==3):
+                self.MS_H_R2 = H_R_list.pop(0)
+                self.MS_H_R3 = H_R_list.pop(0)
+                self.MS_H_R4 = H_R_list.pop(0)
+            del(H_R_list)
+
+            #imagianry part of hopping matrix component
+            iH_R_list = []
+            for spin in range(3):
+                iH_R = []
+                for ct_AN in range(self.atomnum+1)[1:]: #i
+                    for h_AN in range(self.FNAN[ct_AN]+1): #j
+                        iH_R.append(self.iHks[spin][ct_AN][h_AN])
+                iH_R_list.append(copy.deepcopy(iH_R))
+            del(iH_R)
+            del(self.iHks)
+            self.iHks = None
+            SP = self.SpinP_switch
+            self.MS_iH_R1 = iH_R_list.pop(0)
+            if (SP==1):
+                self.MS_iH_R2 = iH_R_list.pop(0)
+            elif (SP==3):
+                self.MS_iH_R2 = iH_R_list.pop(0)
+                self.MS_iH_R3 = iH_R_list.pop(0)
+            del(iH_R_list)
+
+            #Overlap matrix component
+            self.MS_OLP_R = []
+            for ct_AN in range(self.atomnum+1)[1:]: #i
+                for h_AN in range(self.FNAN[ct_AN]+1): #j
+                    self.MS_OLP_R.append(self.OLP[ct_AN][h_AN])
+            del(self.OLP)
+            self.OLP = None
+
+        else: #memory_save == False
+            #hopping matrix component
+            # array of R matrices
+            H_R_list = []
+            for spin in range(self.SpinP_switch+1):
+                H_R = np.zeros((Rs,ms,ms),dtype=float)
+                for ct_AN in range(self.atomnum+1)[1:]: #i
+                    for h_AN in range(self.FNAN[ct_AN]+1): #j
+                        Rn = self.R_mapping[self.ncn[ct_AN][h_AN]]
+                        Gh_AN = self.natn[ct_AN][h_AN]
+                        ct_i,ct_f = self.At_range[ct_AN]
+                        h_i,h_f = self.At_range[Gh_AN]
+                        H_R[Rn,ct_i:ct_f,h_i:h_f] = self.Hks[spin][ct_AN][h_AN]
+                H_R_list.append(H_R)
+            SP = self.SpinP_switch
+            self.H_R1 = H_R_list[0]
+            if (SP==1):
+                self.H_R2 = H_R_list[1]
+            elif (SP==3):
+                self.H_R2 = H_R_list[1]
+                self.H_R3 = H_R_list[2]
+                self.H_R4 = H_R_list[3]
+            del(H_R_list)
+
+            #imagianry part of hopping matrix component
+            # array of R matrices
+            iH_R_list = []
+            for spin in range(3):
+                iH_R = np.zeros((Rs,ms,ms),dtype=float)
+                for ct_AN in range(self.atomnum+1)[1:]: #i
+                    for h_AN in range(self.FNAN[ct_AN]+1): #j
+                        Rn = self.R_mapping[self.ncn[ct_AN][h_AN]]
+                        Gh_AN = self.natn[ct_AN][h_AN]
+                        ct_i,ct_f = self.At_range[ct_AN]
+                        h_i,h_f = self.At_range[Gh_AN]
+                        iH_R[Rn,ct_i:ct_f,h_i:h_f] = self.iHks[spin][ct_AN][h_AN]
+                iH_R_list.append(iH_R)
+            SP = self.SpinP_switch
+            self.iH_R1 = iH_R_list[0]
+            if (SP==1):
+                self.iH_R2 = iH_R_list[1]
+            elif (SP==3):
+                self.iH_R2 = iH_R_list[1]
+                self.iH_R3 = iH_R_list[2]
+            del(iH_R_list)
+
+            #Overlap matrix component
+            # array of R matrices
+            self.OLP_R = np.zeros((Rs,ms,ms),dtype=float)
             for ct_AN in range(self.atomnum+1)[1:]: #i
                 for h_AN in range(self.FNAN[ct_AN]+1): #j
                     Rn = self.R_mapping[self.ncn[ct_AN][h_AN]]
                     Gh_AN = self.natn[ct_AN][h_AN]
                     ct_i,ct_f = self.At_range[ct_AN]
                     h_i,h_f = self.At_range[Gh_AN]
-                    iH_R[Rn,ct_i:ct_f,h_i:h_f] = self.iHks[spin][ct_AN][h_AN]
-            iH_R_list.append(iH_R)
-        SP = self.SpinP_switch
-        self.iH_R1 = iH_R_list[0]
-        if (SP==1):
-            self.iH_R2 = iH_R_list[1]
-        elif (SP==3):
-            self.iH_R2 = iH_R_list[1]
-            self.iH_R3 = iH_R_list[2]
-        del(iH_R_list)
-
-        #Overlap matrix component
-        # array of R matrices
-        self.OLP_R = np.zeros((Rs,ms,ms),dtype=float)
-        for ct_AN in range(self.atomnum+1)[1:]: #i
-            for h_AN in range(self.FNAN[ct_AN]+1): #j
-                Rn = self.R_mapping[self.ncn[ct_AN][h_AN]]
-                Gh_AN = self.natn[ct_AN][h_AN]
-                ct_i,ct_f = self.At_range[ct_AN]
-                h_i,h_f = self.At_range[Gh_AN]
-                self.OLP_R[Rn,ct_i:ct_f,h_i:h_f] = self.OLP[ct_AN][h_AN]
+                    self.OLP_R[Rn,ct_i:ct_f,h_i:h_f] = self.OLP[ct_AN][h_AN]
 
         #order of basis orbital in matrix
         self.PAO_list = []
@@ -249,33 +334,56 @@ class PyMX(ReadScfout):
     def get_XYZ(self):
         ms = self.mat_size
         Rs = self.R_size_reduced
+  
+        if self.memory_save:
+            self.MS_OLPpox_R = []
+            for ct_AN in range(self.atomnum+1)[1:]: #i
+                for h_AN in range(self.FNAN[ct_AN]+1): #j
+                    self.MS_OLPpox_R.append(self.OLPpox[ct_AN][h_AN])
+            del(self.OLPpox)
+            self.OLPpox = None
 
-        self.OLPpox_R = np.zeros((Rs,ms,ms),dtype=float)
-        for ct_AN in range(self.atomnum+1)[1:]: #i
-            for h_AN in range(self.FNAN[ct_AN]+1): #j
-                Rn = self.R_mapping[self.ncn[ct_AN][h_AN]]
-                Gh_AN = self.natn[ct_AN][h_AN]
-                ct_i,ct_f = self.At_range[ct_AN]
-                h_i,h_f = self.At_range[Gh_AN]
-                self.OLPpox_R[Rn,ct_i:ct_f,h_i:h_f] = self.OLPpox[ct_AN][h_AN]
+            self.MS_OLPpoy_R = []
+            for ct_AN in range(self.atomnum+1)[1:]: #i
+                for h_AN in range(self.FNAN[ct_AN]+1): #j
+                    self.MS_OLPpoy_R.append(self.OLPpoy[ct_AN][h_AN])
+            del(self.OLPpoy)
+            self.OLPpoy = None
 
-        self.OLPpoy_R = np.zeros((Rs,ms,ms),dtype=float)
-        for ct_AN in range(self.atomnum+1)[1:]: #i
-            for h_AN in range(self.FNAN[ct_AN]+1): #j
-                Rn = self.R_mapping[self.ncn[ct_AN][h_AN]]
-                Gh_AN = self.natn[ct_AN][h_AN]
-                ct_i,ct_f = self.At_range[ct_AN]
-                h_i,h_f = self.At_range[Gh_AN]
-                self.OLPpoy_R[Rn,ct_i:ct_f,h_i:h_f] = self.OLPpoy[ct_AN][h_AN]
+            self.MS_OLPpoz_R = []
+            for ct_AN in range(self.atomnum+1)[1:]: #i
+                for h_AN in range(self.FNAN[ct_AN]+1): #j
+                    self.MS_OLPpoz_R.append(self.OLPpoz[ct_AN][h_AN])
+            del(self.OLPpoz)
+            self.OLPpoz = None
 
-        self.OLPpoz_R = np.zeros((Rs,ms,ms),dtype=float)
-        for ct_AN in range(self.atomnum+1)[1:]: #i
-            for h_AN in range(self.FNAN[ct_AN]+1): #j
-                Rn = self.R_mapping[self.ncn[ct_AN][h_AN]]
-                Gh_AN = self.natn[ct_AN][h_AN]
-                ct_i,ct_f = self.At_range[ct_AN]
-                h_i,h_f = self.At_range[Gh_AN]
-                self.OLPpoz_R[Rn,ct_i:ct_f,h_i:h_f] = self.OLPpoz[ct_AN][h_AN]
+        else: #self.memory_save==False
+            self.OLPpox_R = np.zeros((Rs,ms,ms),dtype=float)
+            for ct_AN in range(self.atomnum+1)[1:]: #i
+                for h_AN in range(self.FNAN[ct_AN]+1): #j
+                    Rn = self.R_mapping[self.ncn[ct_AN][h_AN]]
+                    Gh_AN = self.natn[ct_AN][h_AN]
+                    ct_i,ct_f = self.At_range[ct_AN]
+                    h_i,h_f = self.At_range[Gh_AN]
+                    self.OLPpox_R[Rn,ct_i:ct_f,h_i:h_f] = self.OLPpox[ct_AN][h_AN]
+
+            self.OLPpoy_R = np.zeros((Rs,ms,ms),dtype=float)
+            for ct_AN in range(self.atomnum+1)[1:]: #i
+                for h_AN in range(self.FNAN[ct_AN]+1): #j
+                    Rn = self.R_mapping[self.ncn[ct_AN][h_AN]]
+                    Gh_AN = self.natn[ct_AN][h_AN]
+                    ct_i,ct_f = self.At_range[ct_AN]
+                    h_i,h_f = self.At_range[Gh_AN]
+                    self.OLPpoy_R[Rn,ct_i:ct_f,h_i:h_f] = self.OLPpoy[ct_AN][h_AN]
+
+            self.OLPpoz_R = np.zeros((Rs,ms,ms),dtype=float)
+            for ct_AN in range(self.atomnum+1)[1:]: #i
+                for h_AN in range(self.FNAN[ct_AN]+1): #j
+                    Rn = self.R_mapping[self.ncn[ct_AN][h_AN]]
+                    Gh_AN = self.natn[ct_AN][h_AN]
+                    ct_i,ct_f = self.At_range[ct_AN]
+                    h_i,h_f = self.At_range[Gh_AN]
+                    self.OLPpoz_R[Rn,ct_i:ct_f,h_i:h_f] = self.OLPpoz[ct_AN][h_AN]
 
     #get Overlap with momentum vector matrix component
     # array of R matrices
@@ -283,32 +391,55 @@ class PyMX(ReadScfout):
         ms = self.mat_size
         Rs = self.R_size_reduced
 
-        self.OLPmox_R = np.zeros((Rs,ms,ms),dtype=float)
-        for ct_AN in range(self.atomnum+1)[1:]: #i
-            for h_AN in range(self.FNAN[ct_AN]+1): #j
-                Rn = self.R_mapping[self.ncn[ct_AN][h_AN]]
-                Gh_AN = self.natn[ct_AN][h_AN]
-                ct_i,ct_f = self.At_range[ct_AN]
-                h_i,h_f = self.At_range[Gh_AN]
-                self.OLPmox_R[Rn,ct_i:ct_f,h_i:h_f] = self.OLPmox[ct_AN][h_AN]
+        if self.memory_save:
+            self.MS_OLPmox_R = []
+            for ct_AN in range(self.atomnum+1)[1:]: #i
+                for h_AN in range(self.FNAN[ct_AN]+1): #j
+                    self.MS_OLPmox_R.append(self.OLPmox[ct_AN][h_AN])
+            del(self.OLPmox)
+            self.OLPmox = None
 
-        self.OLPmoy_R = np.zeros((Rs,ms,ms),dtype=float)
-        for ct_AN in range(self.atomnum+1)[1:]: #i
-            for h_AN in range(self.FNAN[ct_AN]+1): #j
-                Rn = self.R_mapping[self.ncn[ct_AN][h_AN]]
-                Gh_AN = self.natn[ct_AN][h_AN]
-                ct_i,ct_f = self.At_range[ct_AN]
-                h_i,h_f = self.At_range[Gh_AN]
-                self.OLPmoy_R[Rn,ct_i:ct_f,h_i:h_f] = self.OLPmoy[ct_AN][h_AN]
+            self.MS_OLPmoy_R = []
+            for ct_AN in range(self.atomnum+1)[1:]: #i
+                for h_AN in range(self.FNAN[ct_AN]+1): #j
+                    self.MS_OLPmoy_R.append(self.OLPmoy[ct_AN][h_AN])
+            del(self.OLPmoy)
+            self.OLPmoy = None
 
-        self.OLPmoz_R = np.zeros((Rs,ms,ms),dtype=float)
-        for ct_AN in range(self.atomnum+1)[1:]: #i
-            for h_AN in range(self.FNAN[ct_AN]+1): #j
-                Rn = self.R_mapping[self.ncn[ct_AN][h_AN]]
-                Gh_AN = self.natn[ct_AN][h_AN]
-                ct_i,ct_f = self.At_range[ct_AN]
-                h_i,h_f = self.At_range[Gh_AN]
-                self.OLPmoz_R[Rn,ct_i:ct_f,h_i:h_f] = self.OLPmoz[ct_AN][h_AN]
+            self.MS_OLPmoz_R = []
+            for ct_AN in range(self.atomnum+1)[1:]: #i
+                for h_AN in range(self.FNAN[ct_AN]+1): #j
+                    self.MS_OLPmoz_R.append(self.OLPmoz[ct_AN][h_AN])
+            del(self.OLPmoz)
+            self.OLPmoz = None
+
+        else: #self.memory_save==False
+            self.OLPmox_R = np.zeros((Rs,ms,ms),dtype=float)
+            for ct_AN in range(self.atomnum+1)[1:]: #i
+                for h_AN in range(self.FNAN[ct_AN]+1): #j
+                    Rn = self.R_mapping[self.ncn[ct_AN][h_AN]]
+                    Gh_AN = self.natn[ct_AN][h_AN]
+                    ct_i,ct_f = self.At_range[ct_AN]
+                    h_i,h_f = self.At_range[Gh_AN]
+                    self.OLPmox_R[Rn,ct_i:ct_f,h_i:h_f] = self.OLPmox[ct_AN][h_AN]
+
+            self.OLPmoy_R = np.zeros((Rs,ms,ms),dtype=float)
+            for ct_AN in range(self.atomnum+1)[1:]: #i
+                for h_AN in range(self.FNAN[ct_AN]+1): #j
+                    Rn = self.R_mapping[self.ncn[ct_AN][h_AN]]
+                    Gh_AN = self.natn[ct_AN][h_AN]
+                    ct_i,ct_f = self.At_range[ct_AN]
+                    h_i,h_f = self.At_range[Gh_AN]
+                    self.OLPmoy_R[Rn,ct_i:ct_f,h_i:h_f] = self.OLPmoy[ct_AN][h_AN]
+
+            self.OLPmoz_R = np.zeros((Rs,ms,ms),dtype=float)
+            for ct_AN in range(self.atomnum+1)[1:]: #i
+                for h_AN in range(self.FNAN[ct_AN]+1): #j
+                    Rn = self.R_mapping[self.ncn[ct_AN][h_AN]]
+                    Gh_AN = self.natn[ct_AN][h_AN]
+                    ct_i,ct_f = self.At_range[ct_AN]
+                    h_i,h_f = self.At_range[Gh_AN]
+                    self.OLPmoz_R[Rn,ct_i:ct_f,h_i:h_f] = self.OLPmoz[ct_AN][h_AN]
 
     def default_setting(self):
         self.read_file()
@@ -325,6 +456,10 @@ class PyMX(ReadScfout):
             for i in range(N): print(" %d "%(i+N) +self.basis_list[i])
 
     def delete_orbital(self, del_list):
+        # memory_save mode should be added later
+        if self.memory_save:
+            raise Exception("error : delete_orbital is \
+not compatible with memory_save=True")
         if (type(del_list)==int):
             del_list = [del_list]
         del_len = len(del_list)
@@ -394,40 +529,83 @@ class PyMX(ReadScfout):
     def Ri_exp_vec(self, exp_vec, i):
         return exp_vec*self.R_mat_reduced[i,:]
 
+    # construction of k-matrix in memory_save mode
+    def MS_matk(self, exp_vec, Mlist):
+        ms = self.mat_size
+        exp_vec2 = exp_vec[self.MS_Rn]
+        mat = np.zeros((ms,ms), dtype=complex)
+        for ekR,ct_i,ct_f,h_i,h_f,M in zip(exp_vec2,\
+          self.MS_ct_i, self.MS_ct_f, self.MS_h_i, self.MS_h_f, Mlist):
+            mat[ct_i:ct_f,h_i:h_f] += ekR*M
+        return mat
+
     #Hamiltonian matrix at k. input is exp_vec(k)
     def Hk(self, exp_vec, spin=False):
         SP = self.SpinP_switch
-        if (SP==0):
-            h = np.tensordot(exp_vec,self.H_R1,axes=((0),(0)))
-            return h
-        elif (SP==1):
-            if (spin == False):
-                h1 = np.tensordot(exp_vec,self.H_R1,axes=((0),(0)))
-                h2 = np.tensordot(exp_vec,self.H_R2,axes=((0),(0)))
-                zero = np.zeros(h1.shape)
-                return np.block([[h1,zero],[zero,h2]])
-            else:
-                if (spin>0):
-                    h1 = np.tensordot(exp_vec,self.H_R1,axes=((0),(0)))
-                    return h1
-                elif (spin<0):
-                    h2 = np.tensordot(exp_vec,self.H_R2,axes=((0),(0)))
-                    return h2
+        if self.memory_save:
+            if (SP==0):
+                h = self.MS_matk(exp_vec,self.MS_H_R1)
+                return h
+            elif (SP==1):
+                if (spin == False):
+                    h1 = self.MS_matk(exp_vec,self.MS_H_R1)
+                    h2 = self.MS_matk(exp_vec,self.MS_H_R2)
+                    zero = np.zeros(h1.shape)
+                    return np.block([[h1,zero],[zero,h2]])
                 else:
-                    raise Exception("error : spin of Hk")
-        elif (SP==3):
-            h11r = np.tensordot(exp_vec,self.H_R1,axes=((0),(0)))
-            h11i = np.tensordot(exp_vec,self.iH_R1,axes=((0),(0)))
-            h11 = h11r + 1.j*h11i
-            h22r = np.tensordot(exp_vec,self.H_R2,axes=((0),(0)))
-            h22i = np.tensordot(exp_vec,self.iH_R2,axes=((0),(0)))
-            h22 = h22r + 1.j*h22i
-            h12r = np.tensordot(exp_vec,self.H_R3,axes=((0),(0)))
-            h12i = np.tensordot(exp_vec,self.iH_R3,axes=((0),(0)))+\
-                   np.tensordot(exp_vec,self.H_R4,axes=((0),(0)))
-            h12 = h12r + 1.j*h12i
-            h21 = h12.conjugate().transpose()
-            return np.block([[h11,h12],[h21,h22]])
+                    if (spin>0):
+                        h1 = self.MS_matk(exp_vec,self.MS_H_R1)
+                        return h1
+                    elif (spin<0):
+                        h2 = self.MS_matk(exp_vec,self.MS_H_R2)
+                        return h2
+                    else:
+                        raise Exception("error : spin of Hk")
+            elif (SP==3):
+                h11r = self.MS_matk(exp_vec,self.MS_H_R1)
+                h11i = self.MS_matk(exp_vec,self.MS_iH_R1)
+                h11 = h11r + 1.j*h11i
+                h22r = self.MS_matk(exp_vec,self.MS_H_R2)
+                h22i = self.MS_matk(exp_vec,self.MS_iH_R2)
+                h22 = h22r + 1.j*h22i
+                h12r = self.MS_matk(exp_vec,self.MS_H_R3)
+                h12i = self.MS_matk(exp_vec,self.MS_iH_R3)+\
+                       self.MS_matk(exp_vec,self.MS_H_R4)
+                h12 = h12r + 1.j*h12i
+                h21 = h12.conjugate().transpose()
+                return np.block([[h11,h12],[h21,h22]])
+        else:
+            if (SP==0):
+                h = np.tensordot(exp_vec,self.H_R1,axes=((0),(0)))
+                return h
+            elif (SP==1):
+                if (spin == False):
+                    h1 = np.tensordot(exp_vec,self.H_R1,axes=((0),(0)))
+                    h2 = np.tensordot(exp_vec,self.H_R2,axes=((0),(0)))
+                    zero = np.zeros(h1.shape)
+                    return np.block([[h1,zero],[zero,h2]])
+                else:
+                    if (spin>0):
+                        h1 = np.tensordot(exp_vec,self.H_R1,axes=((0),(0)))
+                        return h1
+                    elif (spin<0):
+                        h2 = np.tensordot(exp_vec,self.H_R2,axes=((0),(0)))
+                        return h2
+                    else:
+                        raise Exception("error : spin of Hk")
+            elif (SP==3):
+                h11r = np.tensordot(exp_vec,self.H_R1,axes=((0),(0)))
+                h11i = np.tensordot(exp_vec,self.iH_R1,axes=((0),(0)))
+                h11 = h11r + 1.j*h11i
+                h22r = np.tensordot(exp_vec,self.H_R2,axes=((0),(0)))
+                h22i = np.tensordot(exp_vec,self.iH_R2,axes=((0),(0)))
+                h22 = h22r + 1.j*h22i
+                h12r = np.tensordot(exp_vec,self.H_R3,axes=((0),(0)))
+                h12i = np.tensordot(exp_vec,self.iH_R3,axes=((0),(0)))+\
+                       np.tensordot(exp_vec,self.H_R4,axes=((0),(0)))
+                h12 = h12r + 1.j*h12i
+                h21 = h12.conjugate().transpose()
+                return np.block([[h11,h12],[h21,h22]])
 
     #Hamiltonian matrix at k. input is k
     def Hk_kvec(self, k, spin=False):
@@ -444,7 +622,10 @@ class PyMX(ReadScfout):
     #Overlap matrix at k. input is exp_vec(k)
     def Sk(self, exp_vec, spin=False, small=False):
         SP = self.SpinP_switch
-        s = np.tensordot(exp_vec,self.OLP_R,axes=((0),(0)))
+        if self.memory_save:
+            s = self.MS_matk(exp_vec,self.MS_OLP_R)
+        else:
+            s = np.tensordot(exp_vec,self.OLP_R,axes=((0),(0)))
         if (SP==0 or small):
             return s
         elif (SP==1):
@@ -474,7 +655,10 @@ class PyMX(ReadScfout):
     #Overlap with position x matrix at k. input is exp_vec(k)
     def Xk(self, exp_vec, spin=False, small=False):
         SP = self.SpinP_switch
-        x = np.tensordot(exp_vec,self.OLPpox_R,axes=((0),(0)))
+        if self.memory_save:
+            x = self.MS_matk(exp_vec,self.MS_OLPpox_R)
+        else:
+            x = np.tensordot(exp_vec,self.OLPpox_R,axes=((0),(0)))
         if (SP==0 or small):
             return x
         elif (SP==1):
@@ -497,7 +681,10 @@ class PyMX(ReadScfout):
     #Overlap with position y matrix at k. input is exp_vec(k)
     def Yk(self, exp_vec, spin=False, small=False):
         SP = self.SpinP_switch
-        y = np.tensordot(exp_vec,self.OLPpoy_R,axes=((0),(0)))
+        if self.memory_save:
+            y = self.MS_matk(exp_vec,self.MS_OLPpoy_R)
+        else:
+            y = np.tensordot(exp_vec,self.OLPpoy_R,axes=((0),(0)))
         if (SP==0 or small):
             return y
         elif (SP==1):
@@ -520,7 +707,10 @@ class PyMX(ReadScfout):
     #Overlap with position z matrix at k. input is exp_vec(k)
     def Zk(self, exp_vec, spin=False, small=False):
         SP = self.SpinP_switch
-        z = np.tensordot(exp_vec,self.OLPpoz_R,axes=((0),(0)))
+        if self.memory_save:
+            z = self.MS_matk(exp_vec,self.MS_OLPpoz_R)
+        else:
+            z = np.tensordot(exp_vec,self.OLPpoz_R,axes=((0),(0)))
         if (SP==0 or small):
             return z
         elif (SP==1):
