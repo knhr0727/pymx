@@ -40,6 +40,16 @@ def load_band(fname):
         EF     = f['EF'    ]
         f.close()
         return [[klist,Elists1,Wlists1,Elists2,Wlists2],EF]
+    elif (ln==7):
+        klist  = f['klist' ]
+        Elists = f['Elists']
+        Wlists = f['Wlists']
+        Sxlists = f['Sxlists']
+        Sylists = f['Sylists']
+        Szlists = f['Szlists']
+        EF     = f['EF'    ]
+        f.close()
+        return [[klist,Elists,Wlists,Sxlists,Sylists,Szlists],EF]
     else:
         f.close()
         raise Exception("error : invalid input of save_band.")
@@ -47,12 +57,14 @@ def load_band(fname):
 def print_openmxstyle(ufbands, cut1, cut2, EF=0., fname='unfolded_bands_omx',\
                       labels=None):
     if len(ufbands[0])==3:
-        SP = 0
+        SP = 0 #spinless or spin non-collinear
     elif len(ufbands[0])==5:
-        SP = 1
+        SP = 1 #spin collinear
+    elif len(ufbands[0])==6:
+        SP = 4 #spin texture
     else:
         raise Exception("error : invalid input format in print_openmxstyle.\
- it must be a list of outputs of Unfolding_band")
+ it must be a list of outputs of Unfolding_band or Unfolding_spintexture_band")
     Nb = len(ufbands)
     ticks = [0.]
     k0 = 0.
@@ -61,6 +73,11 @@ def print_openmxstyle(ufbands, cut1, cut2, EF=0., fname='unfolded_bands_omx',\
     elif (SP==1):
         f1 = open(fname+'.up.dat','w')
         f2 = open(fname+'.dn.dat','w')
+    elif (SP==4):
+        f1 = open(fname+'.dat','w')
+        f2 = open(fname+'.sx.dat','w')
+        f3 = open(fname+'.sy.dat','w')
+        f4 = open(fname+'.sz.dat','w')
     for j in range(Nb):
         k = ufbands[j][0]
         if (j==0):
@@ -70,20 +87,20 @@ def print_openmxstyle(ufbands, cut1, cut2, EF=0., fname='unfolded_bands_omx',\
         for i in range(i0,len(k)):
             kout = k[i] + k0
             if (SP==0):
-                E = ufbands[j][1][i]
+                E = ufbands[j][1][i,:]
                 E = (E-EF)*Hartree
-                W = ufbands[j][2][i]
+                W = ufbands[j][2][i,:]
                 for e,w in zip(E,W):
                     if (cut1 <= e <= cut2):
                         outstr = "%.6f %.6f %.7f \n"%(kout,e,w)
                         f.write(outstr)
             elif (SP==1):
-                E1 = ufbands[j][1][i]
+                E1 = ufbands[j][1][i,:]
                 E1 = (E1-EF)*Hartree
-                W1 = ufbands[j][2][i]
-                E2 = ufbands[j][3][i]
+                W1 = ufbands[j][2][i,:]
+                E2 = ufbands[j][3][i,:]
                 E2 = (E2-EF)*Hartree
-                W2 = ufbands[j][4][i]
+                W2 = ufbands[j][4][i,:]
                 for e1,w1 in zip(E1,W1):
                     if (cut1 <= e1 <= cut2):
                         outstr = "%.6f %.6f %.7f \n"%(kout,e1,w1)
@@ -92,6 +109,23 @@ def print_openmxstyle(ufbands, cut1, cut2, EF=0., fname='unfolded_bands_omx',\
                     if (cut1 <= e2 <= cut2):
                         outstr = "%.6f %.6f %.7f \n"%(kout,e2,w2)
                         f2.write(outstr)
+            elif (SP==4):
+                E = ufbands[j][1][i,:]
+                E = (E-EF)*Hartree
+                W = ufbands[j][2][i,:]
+                Sx = ufbands[j][3][i,:]
+                Sy = ufbands[j][4][i,:]
+                Sz = ufbands[j][5][i,:]
+                for e,w,sx,sy,sz in zip(E,W,Sx,Sy,Sz):
+                    if (cut1 <= e <= cut2):
+                        outstr = "%.6f %.6f %.7f \n"%(kout,e,w)
+                        f1.write(outstr)
+                        outstr = "%.6f %.6f %.7f \n"%(kout,e,sx)
+                        f2.write(outstr)
+                        outstr = "%.6f %.6f %.7f \n"%(kout,e,sy)
+                        f3.write(outstr)
+                        outstr = "%.6f %.6f %.7f \n"%(kout,e,sz)
+                        f4.write(outstr)
         k0 = kout
         ticks.append(k0)
     if (SP==0):
@@ -99,6 +133,11 @@ def print_openmxstyle(ufbands, cut1, cut2, EF=0., fname='unfolded_bands_omx',\
     elif (SP==1):
         f1.close()
         f2.close()
+    elif (SP==4):
+        f1.close()
+        f2.close()
+        f3.close()
+        f4.close()
     f = open(fname+".kpt",'w')
     if (labels is None):
         for k in ticks:
@@ -340,6 +379,36 @@ class unfolding_pymx():
         else:
             raise Exception("error : spin of Unfolding")
 
+    def Unfolding_spintexture(self, k, eV=False, shift=False):
+        SP = self.pm.SpinP_switch
+        if (SP!=3):
+            raise Exception("error: only spin non-collinear case is considered \
+for Unfolding_spintexture")
+        h = self.pm.Hk_kvec(k)
+        s = self.pm.Sk_kvec(k, small=True)
+        ufmat0 = self.Unfold_mat(s,k)
+        I = np.identity(2,dtype=complex)
+        ufmat = np.kron(I,ufmat0)
+        s = np.kron(I,s)
+        w,v = scipylinalg.eigh(h, s,\
+              overwrite_a=True, overwrite_b=True)
+        if shift:
+            w = w-self.pm.ChemP
+        if eV:
+            w *= Hartree
+        uf = np.linalg.multi_dot([v.conjugate().transpose(),ufmat,v])
+        uf = np.abs(uf.diagonal().real)
+        Sx = np.kron(0.5*s_x,ufmat0)
+        Sx = np.linalg.multi_dot([v.conjugate().transpose(),Sx,v])
+        Sx = Sx.diagonal().real
+        Sy = np.kron(0.5*s_y,ufmat0)
+        Sy = np.linalg.multi_dot([v.conjugate().transpose(),Sy,v])
+        Sy = Sy.diagonal().real
+        Sz = np.kron(0.5*s_z,ufmat0)
+        Sz = np.linalg.multi_dot([v.conjugate().transpose(),Sz,v])
+        Sz = Sz.diagonal().real
+        return [w,uf,Sx,Sy,Sz]
+
     def Unfolding_band(self, k1, k2, n, num_print=False, eV=False, shift=False):
         ni = 1
         SP = self.pm.SpinP_switch
@@ -388,6 +457,42 @@ class unfolding_pymx():
             Elists2 = np.array(Elists2) 
             Wlists2 = np.array(Wlists2) 
             return [klist, Elists1, Wlists1, Elists2, Wlists2]
+
+    def Unfolding_spintexture_band(self, k1, k2, n, num_print=False, eV=False, shift=False):
+        SP = self.pm.SpinP_switch
+        if (SP!=3):
+            raise Exception("error: only spin non-collinear case is considered \
+for Unfolding_spintexture_band")
+        ni = 1
+        path = kpath(k1,k2,n)
+        k = 0.0
+        klist = []
+        Elists = []
+        Wlists = []
+        Sxlists = []
+        Sylists = []
+        Szlists = []
+        kbefore = path[0]
+        for kvec in path:
+            k += np.linalg.norm(kvec-kbefore)
+            klist.append(k)
+            if num_print:
+                print("band %d/%d "%(ni,n))
+                ni += 1
+            ST = self.Unfolding_spintexture(kvec, eV=eV, shift=shift)
+            Elists.append(ST[0])
+            Wlists.append(ST[1])
+            Sxlists.append(ST[2])
+            Sylists.append(ST[3])
+            Szlists.append(ST[4])
+            kbefore = kvec
+        klist = np.array(klist)
+        Elists = np.array(Elists) 
+        Wlists = np.array(Wlists) 
+        Sxlists = np.array(Sxlists) 
+        Sylists = np.array(Sylists) 
+        Szlists = np.array(Szlists) 
+        return [klist, Elists, Wlists, Sxlists, Sylists, Szlists]
     
     def save_band(self, ufband, fname='unfolded_band'):
         ln = len(ufband)
@@ -407,6 +512,16 @@ class unfolding_pymx():
             np.savez(foutname, klist=klist, Elists1=Elists1, Wlists1=Wlists1,\
                                             Elists2=Elists2, Wlists2=Wlists2,\
                                             EF=self.pm.ChemP)
+        elif (ln==6):
+            klist = ufband[0]
+            Elists = ufband[1]
+            Wlists = ufband[2]
+            Sxlists = ufband[3]
+            Sylists = ufband[4]
+            Szlists = ufband[5]
+            np.savez(foutname, klist=klist, Elists=Elists, Wlists=Wlists,\
+                     Sxlists=Sxlists, Sylists=Sylists, Szlists=Szlists,\
+                     EF=self.pm.ChemP)
         else:
             raise Exception("error : invalid input of save_band.")
     
@@ -600,5 +715,21 @@ def plot_intmap(intdat, figsize=None, norm='log', vmin=1., vmax=None,\
     plt.tight_layout()
     plt.show()
     
-    
+def spin_rotation(ufband, X, Z):    
+    if len(ufband)!=6:
+        raise Exception('error: input of spin_rotation should be \
+the output of Unfolding_spintexture_band')
+    klist, Elists, Wlists, Sxlists, Sylists, Szlists = ufband
+    cri = 1.e-9
+    if (np.abs(np.dot(X,Z))>cri):
+        raise Exception('error: X and Z are not orthogonal in spin_rotation')
+    x = X/np.linalg.norm(X)
+    z = Z-x*np.dot(x,Z)
+    z = z/np.linalg.norm(z)
+    y = np.cross(z,x)
+    y = y/np.linalg.norm(y)
+    Sx = Sxlists*x[0] + Sylists*x[1] + Szlists*x[2]
+    Sy = Sxlists*y[0] + Sylists*y[1] + Szlists*y[2]
+    Sz = Sxlists*z[0] + Sylists*z[1] + Szlists*z[2]
+    return [klist, Elists, Wlists, Sx, Sy, Sz]
     
