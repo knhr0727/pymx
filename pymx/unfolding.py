@@ -1,4 +1,4 @@
-# initial version 2021/12/27
+# initial version: 2021/Dec/28
 
 from .pymx import * 
 import scipy.sparse as spr
@@ -44,7 +44,8 @@ def load_band(fname):
         f.close()
         raise Exception("error : invalid input of save_band.")
 
-def print_openmxstyle(ufbands, cut1, cut2, EF=0., fname='result.pyunfold'):
+def print_openmxstyle(ufbands, cut1, cut2, EF=0., fname='unfolded_bands_omx',\
+                      labels=None):
     if len(ufbands[0])==3:
         SP = 0
     elif len(ufbands[0])==5:
@@ -53,6 +54,7 @@ def print_openmxstyle(ufbands, cut1, cut2, EF=0., fname='result.pyunfold'):
         raise Exception("error : invalid input format in print_openmxstyle.\
  it must be a list of outputs of Unfolding_band")
     Nb = len(ufbands)
+    ticks = [0.]
     k0 = 0.
     if (SP==0):
         f = open(fname+'.dat','w')
@@ -91,14 +93,22 @@ def print_openmxstyle(ufbands, cut1, cut2, EF=0., fname='result.pyunfold'):
                         outstr = "%.6f %.6f %.7f \n"%(kout,e2,w2)
                         f2.write(outstr)
         k0 = kout
+        ticks.append(k0)
     if (SP==0):
         f.close()
     elif (SP==1):
         f1.close()
         f2.close()
-        
+    f = open(fname+".kpt",'w')
+    if (labels is None):
+        for k in ticks:
+            f.write(" %.8f \n"%k)
+    else:
+        for k,l in zip(ticks,labels):
+            f.write((" %.8f "%k) +l+" \n")
+    f.close()
 
-class unfolding_pymx:
+class unfolding_pymx():
     '''unfolding package based on pymx'''
 
     def __init__(self, pm, uf_cell, uf_map, origin=Otxt, check=True):
@@ -330,7 +340,7 @@ class unfolding_pymx:
         else:
             raise Exception("error : spin of Unfolding")
 
-    def Unfolding_band(self, k1, k2, n, num_print=False):
+    def Unfolding_band(self, k1, k2, n, num_print=False, eV=False, shift=False):
         ni = 1
         SP = self.pm.SpinP_switch
         path = kpath(k1,k2,n)
@@ -354,14 +364,14 @@ class unfolding_pymx:
                 if num_print:
                     print("band %d/%d "%(ni,n))
                     ni += 1
-                e,w = self.Unfolding(kvec)
+                e,w = self.Unfolding(kvec, eV=eV, shift=shift)
                 Elists.append(e)
                 Wlists.append(w)
             elif (SP==1):
                 if num_print:
                     print("band %d/%d "%(ni,n))
                     ni += 1
-                e1,w1,e2,w2 = self.Unfolding(kvec)
+                e1,w1,e2,w2 = self.Unfolding(kvec, eV=eV, shift=shift)
                 Elists1.append(e1)
                 Wlists1.append(w1)
                 Elists2.append(e2)
@@ -403,10 +413,192 @@ class unfolding_pymx:
     def load_band(self, fname):
         load_band(fname)
 
-    def print_openmxstyle(self, ufbands, cut1, cut2, fname='result.pyunfold'):
-        print_openmxstyle(ufbands, cut1, cut2, EF=self.pm.ChemP, fname=fname)
+    def print_openmxstyle(self, ufbands, cut1, cut2, fname='unfolded_bands_omx',\
+                          labels=None):
+        print_openmxstyle(ufbands, cut1, cut2, EF=self.pm.ChemP, fname=fname,\
+                          labels=labels)
     
     def mat_print(self, X, l=0, delimiter=''):
         mat_print(X, l=l, delimiter=delimiter)
+    
+
+def intmap_sokhotski(banddat, kptfile=None, emin=-6., emax=6., NE=401, eta=0.02,\
+                     outfile='unfold_intmap_sokhotski'): 
+    '''intensity map by Sokhotski formula'''
+    data = np.loadtxt(banddat)
+    k0 = np.around(data[:,0], decimals=6)
+    E0 = np.around(data[:,1], decimals=6)
+    W0 = np.around(data[:,2], decimals=6)
+    klist = []
+    Elist = []
+    Wlist = []
+    Ndata = E0.shape[0]
+    d = 0.000001
+    i0 = 0
+    while (i0<Ndata):
+        k1 = k0[i0]
+        idv = np.where(np.abs(k0-k1)<d)[0]
+        klist.append(k1)
+        Elist.append(E0[idv])
+        Wlist.append(W0[idv])
+        i0 = idv[-1]+1
+    klist = np.array(klist)
+    
+    evec = np.linspace(emin,emax,NE)
+    W = []
+    for ee,ww in zip(Elist,Wlist):
+        wout = np.zeros(NE,dtype=float)
+        for e,w in zip(ee,ww):
+            wout += w*(1.j/np.pi/(evec-e+1.j*eta)).real
+        W.append(wout)
+    W = np.array(W).transpose()
+    
+    kticks = []
+    labels = []
+    if kptfile is not None:
+        f = open(kptfile,'r')
+        lines = f.readlines()
+        f.close()
+        for line in lines:
+            spl = line.split()
+            if (len(spl)==1):
+                kticks.append(float(spl[0]))
+            elif (len(spl)==2):
+                kticks.append(float(spl[0]))
+                labels.append(spl[1])
+            else:
+                raise Exception("Error: wrong kpt file format in intmap_sokhotski")
+    np.savez(outfile+'.npz',\
+             k=klist, E=evec, W=W, kticks=kticks, labels=labels)
+    
+def intmap_lorentzian(banddat, kptfile=None, emin=-6., emax=6., NE=401, dE=0.02,\
+                     dk=0.0, pad=2, g=1., outfile='unfold_intmap_lorentzian'): 
+    '''intensity map by Lorentzian function'''
+    if (dE<=0.):
+        raise Exception("Error: dE in intmap_lorentzian must be positive")
+    if (dk<0.):
+        raise Exception("Error: dk in intmap_lorentzian must be positive or zero")
+    if (g<=0.):
+        raise Exception("Error: g in intmap_lorentzian must be positive")
+    data = np.loadtxt(banddat)
+    k0 = np.around(data[:,0], decimals=6)
+    E0 = np.around(data[:,1], decimals=6)
+    W0 = np.around(data[:,2], decimals=6)
+    klist = []
+    Elist = []
+    Wlist = []
+    Ndata = E0.shape[0]
+    d = 0.000001
+    i0 = 0
+    while (i0<Ndata):
+        k1 = k0[i0]
+        idv = np.where(np.abs(k0-k1)<d)[0]
+        klist.append(k1)
+        Elist.append(E0[idv])
+        Wlist.append(W0[idv])
+        i0 = idv[-1]+1
+    klist = np.array(klist)
+    Nk = klist.shape[0]
+    evec = np.linspace(emin,emax,NE)
+    
+    kticks = []
+    labels = []
+    if kptfile is not None:
+        f = open(kptfile,'r')
+        lines = f.readlines()
+        f.close()
+        for line in lines:
+            spl = line.split()
+            if (len(spl)==1):
+                kticks.append(float(spl[0]))
+            elif (len(spl)==2):
+                kticks.append(float(spl[0]))
+                labels.append(spl[1])
+            else:
+                raise Exception("Error: wrong kpt file format in intmap_sokhotski")
+
+    if (float(dk)==0.):
+        W = []
+        scale = g/np.pi/dE
+        for ee,ww in zip(Elist,Wlist):
+            wout = np.zeros(NE,dtype=float)
+            for e,w in zip(ee,ww):
+                func = np.power((evec-e)/dE,2) + g*g
+                wout += w*scale/func
+            W.append(wout)
+        W = np.array(W).transpose()
+        np.savez(outfile+'.npz',\
+                 k=klist, E=evec, W=W, kticks=kticks, labels=labels)
+
+    else:
+        if (pad==0):
+            klist2 = klist
+            Nk2 = Nk
+        elif (pad<0):
+            raise Exception("Error: pad in intmap_lorentzian must be positive or zero")
+        else:
+            Nk2 = (Nk-1)*(pad+1)+1
+            klist2 = []
+            for i in range(Nk-1):
+                ki = klist[i]
+                kf = klist[i+1]
+                for k in np.linspace(ki,kf,pad+2)[:-1]:
+                    klist2.append(k)
+            klist2.append(klist[-1])
+        klist2 = np.array(klist2)
+        W = np.zeros((NE,Nk2),dtype=float)
+        kgrid = np.array([klist2]*NE)
+        egrid = np.array([evec]*Nk2).transpose()
+
+        scale = 0.5*g/np.pi/dE/dk
+        for k,ee,ww in zip(klist,Elist,Wlist):
+            for e,w in zip(ee,ww):
+                func1 = np.power((kgrid-k)/dk,2) +np.power((egrid-e)/dE,2) +g*g
+                func2 = np.power(func1,1.5)
+                W += w*scale/func2
+        np.savez(outfile+'.npz',\
+                 k=klist2, E=evec, W=W, kticks=kticks, labels=labels)
+
+def plot_intmap(intdat, figsize=None, norm='log', vmin=1., vmax=None,\
+                cmap='viridis', colorbar=False, cbar_ticks=[],\
+                **kwargs):
+    import matplotlib.pyplot as plt
+    import matplotlib.colors as colors
+    f = np.load(intdat)
+    k = f['k']  
+    E = f['E']
+    W = f['W'] 
+    kticks = f['kticks']
+    labels = f['labels']
+    f.close()
+    labels2 = [l.decode('utf-8') for l in labels]
+
+    fig1 = plt.figure('unfolding_intensity_map', figsize=figsize)
+    ax1 = fig1.add_subplot(111)
+    if (type(norm)==str):
+        if (norm=='log'):
+            mynorm = colors.LogNorm(vmin=vmin, vmax=vmax)
+        elif (norm=='linear'):
+            mynorm = colors.Normalize(vmin=vmin, vmax=vmax)
+        elif (norm=='symlog'):
+            if vmax is None:
+                vmin2 = None
+            else:
+                vmin2 = -vmax 
+            mynorm = colors.SymLogNorm(linthresh=vmin,vmin=vmin2,vmax=vmax)
+        else:
+            mynorm = None
+    else:
+        mynorm = norm
+    BC = ax1.pcolormesh(k,E,W,norm=mynorm,cmap=cmap, shading='gouraud', **kwargs)
+    ax1.set_xticks(kticks)
+    ax1.set_xticklabels(labels2)
+    plt.grid(which='major', axis='x', linewidth=1.)
+    plt.ylabel('Energy (eV)')
+    if colorbar:
+        plt.colorbar(BC, ax=ax1, ticks=cbar_ticks)
+    plt.tight_layout()
+    plt.show()
+    
     
     
