@@ -244,7 +244,7 @@ class unfolding_pymx():
         self.uf_map2 = np.array(uf_map2)
         if check:
             print("unfolding mapping in the supercell: ")
-            print(self.uf_map2)
+            mat_print(self.uf_map2, delimiter='  ')
 
         refL = np.linalg.norm(self.a1)+np.linalg.norm(self.a2)+np.linalg.norm(self.a3)
         refl = min(np.linalg.norm(self.ufa1),np.linalg.norm(self.ufa2),np.linalg.norm(self.ufa3))
@@ -252,7 +252,7 @@ class unfolding_pymx():
         maxfind = min(self.Nm+1,Nl)
 
         if check:
-            print("check M, m(M), r'(M): ")
+            print("check M, m(M), r'(M): ", flush=True)
         self.rlist = [] # r'(M)
         for i in range(self.Ntot):
             M,m = self.uf_map2[i,:]
@@ -276,8 +276,7 @@ class unfolding_pymx():
             print(self.rset)
         self.Nr = len(self.rset)
         if check:
-            print("rset size: ")
-            print(self.Nr)
+            print("rset size: %d "%self.Nr)
         
         #if check:
         #    print("correction can be applied here")
@@ -292,8 +291,7 @@ class unfolding_pymx():
                         self.M2[i,M-1] = self.uf_map2[k,0] 
         if check:
             print("M2: ")
-            print(self.M2)
-                
+            mat_print(self.M2, delimiter=' ')
 
         self.ms = pm.mat_size
         self.delta = []
@@ -312,6 +310,7 @@ class unfolding_pymx():
             one = np.ones(len(cc), dtype=float)
             self.delta.append(spr.csr_matrix((one, (rr, cc)),\
                          dtype=float, shape=(self.ms,self.ms)))
+        sys.stdout.flush()
 
     def eikr0(self, k):
         out = []
@@ -397,6 +396,7 @@ for Unfolding_spintexture")
         if eV:
             w *= Hartree
         uf = np.linalg.multi_dot([v.conjugate().transpose(),ufmat,v])
+        del(ufmat)
         uf = np.abs(uf.diagonal().real)
         Sx = np.kron(0.5*s_x,ufmat0)
         Sx = np.linalg.multi_dot([v.conjugate().transpose(),Sx,v])
@@ -431,14 +431,14 @@ for Unfolding_spintexture")
             klist.append(k)
             if (SP==0)or(SP==3): 
                 if num_print:
-                    print("band %d/%d "%(ni,n))
+                    print("band %d/%d "%(ni,n), flush=True)
                     ni += 1
                 e,w = self.Unfolding(kvec, eV=eV, shift=shift)
                 Elists.append(e)
                 Wlists.append(w)
             elif (SP==1):
                 if num_print:
-                    print("band %d/%d "%(ni,n))
+                    print("band %d/%d "%(ni,n), flush=True)
                     ni += 1
                 e1,w1,e2,w2 = self.Unfolding(kvec, eV=eV, shift=shift)
                 Elists1.append(e1)
@@ -477,7 +477,7 @@ for Unfolding_spintexture_band")
             k += np.linalg.norm(kvec-kbefore)
             klist.append(k)
             if num_print:
-                print("band %d/%d "%(ni,n))
+                print("band %d/%d "%(ni,n), flush=True)
                 ni += 1
             ST = self.Unfolding_spintexture(kvec, eV=eV, shift=shift)
             Elists.append(ST[0])
