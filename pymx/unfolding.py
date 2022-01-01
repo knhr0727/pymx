@@ -252,7 +252,7 @@ class unfolding_pymx():
         maxfind = min(self.Nm+1,Nl)
 
         if check:
-            print("check M, m(M), r'(M): ", flush=True)
+            print("check M, m(M), r'(M): ")
         self.rlist = [] # r'(M)
         for i in range(self.Ntot):
             M,m = self.uf_map2[i,:]
@@ -262,6 +262,9 @@ class unfolding_pymx():
             self.rlist.append(np.array(ijk))
             if check:
                 print(M,m,ijk)
+                if (i%8==7):
+                    sys.stdout.flush()
+        sys.stdout.flush()
 
         self.rset = []
         for v in self.rlist:
@@ -431,14 +434,16 @@ for Unfolding_spintexture")
             klist.append(k)
             if (SP==0)or(SP==3): 
                 if num_print:
-                    print("band %d/%d "%(ni,n), flush=True)
+                    print("band %d/%d "%(ni,n))
+                    sys.stdout.flush()
                     ni += 1
                 e,w = self.Unfolding(kvec, eV=eV, shift=shift)
                 Elists.append(e)
                 Wlists.append(w)
             elif (SP==1):
                 if num_print:
-                    print("band %d/%d "%(ni,n), flush=True)
+                    print("band %d/%d "%(ni,n))
+                    sys.stdout.flush()
                     ni += 1
                 e1,w1,e2,w2 = self.Unfolding(kvec, eV=eV, shift=shift)
                 Elists1.append(e1)
@@ -477,7 +482,8 @@ for Unfolding_spintexture_band")
             k += np.linalg.norm(kvec-kbefore)
             klist.append(k)
             if num_print:
-                print("band %d/%d "%(ni,n), flush=True)
+                print("band %d/%d "%(ni,n))
+                sys.stdout.flush()
                 ni += 1
             ST = self.Unfolding_spintexture(kvec, eV=eV, shift=shift)
             Elists.append(ST[0])
