@@ -147,6 +147,20 @@ def print_openmxstyle(ufbands, cut1, cut2, EF=0., fname='unfolded_bands_omx',\
             f.write((" %.8f "%k) +l+" \n")
     f.close()
 
+def gaussian(x, x0, sigma):
+    if (sigma <=0.):
+        raise Exception("Error: sigma in gaussian should be positive")
+    return np.exp(-0.5*(x-x0)*(x-x0)/sigma/sigma)
+
+def gaussian_mat(w, sigma):
+    if (sigma <=0.):
+        raise Exception("Error: sigma in gaussian_mat should be positive")
+    N = w.shape[0]
+    W = np.array([w]*N)
+    W -= W.transpose()
+    W *= W
+    return np.exp(-W/sigma/sigma)
+
 class unfolding_pymx():
     '''unfolding package based on pymx'''
 
@@ -357,7 +371,7 @@ class unfolding_pymx():
                 w *= Hartree
             uf = np.linalg.multi_dot([v.conjugate().transpose(),ufmat,v])
             uf = np.abs(uf.diagonal().real)
-            return [w,uf]
+            return [w.copy(),uf.copy()]
         elif (SP==1):
             h = self.pm.Hk_kvec(k, spin=1)
             s = self.pm.Sk_kvec(k, small=True)
@@ -377,42 +391,54 @@ class unfolding_pymx():
             if eV:
                 w1 *= Hartree
                 w2 *= Hartree
-            return [w1,uf1,w2,uf2]
+            return [w1.copy(),uf1.copy(),w2.copy(),uf2.copy()]
         else:
             raise Exception("error : spin of Unfolding")
 
-    def Unfolding_spintexture(self, k, eV=False, shift=False):
+    def Unfolding_spintexture(self, k, eV=False, shift=False,\
+                              method=1, sigma=0.004):
         SP = self.pm.SpinP_switch
         if (SP!=3):
             raise Exception("error: only spin non-collinear case is considered \
 for Unfolding_spintexture")
         h = self.pm.Hk_kvec(k)
-        s = self.pm.Sk_kvec(k, small=True)
-        ufmat0 = self.Unfold_mat(s,k)
+        s0 = self.pm.Sk_kvec(k, small=True)
+        ufmat = self.Unfold_mat(s0,k)
         I = np.identity(2,dtype=complex)
-        ufmat = np.kron(I,ufmat0)
-        s = np.kron(I,s)
+        ufmat = np.kron(I,ufmat)
+        s = np.kron(I,s0)
         w,v = scipylinalg.eigh(h, s,\
               overwrite_a=True, overwrite_b=True)
+        del(h)
+        del(s)
         if shift:
             w = w-self.pm.ChemP
         if eV:
             w *= Hartree
-        uf = np.linalg.multi_dot([v.conjugate().transpose(),ufmat,v])
-        del(ufmat)
-        uf = np.abs(uf.diagonal().real)
-        Sx = np.kron(0.5*s_x,ufmat0)
+        ufmat = np.linalg.multi_dot([v.conjugate().transpose(),ufmat,v])
+        if (method==1):
+            pass
+        elif (method==2): #unfolding density method gaussian broadening
+            ufmat = ufmat*gaussian_mat(w,sigma)
+        else:
+            raise Exception("error: wrong method in Unfolding_spintexture")
+        uf = np.abs(ufmat.diagonal().real)
+        Sx = np.kron(0.5*s_x,s0)
         Sx = np.linalg.multi_dot([v.conjugate().transpose(),Sx,v])
-        Sx = Sx.diagonal().real
-        Sy = np.kron(0.5*s_y,ufmat0)
+        Sx = np.dot(Sx,ufmat).diagonal().real
+        Sy = np.kron(0.5*s_y,s0)
         Sy = np.linalg.multi_dot([v.conjugate().transpose(),Sy,v])
-        Sy = Sy.diagonal().real
-        Sz = np.kron(0.5*s_z,ufmat0)
+        Sy = np.dot(Sy,ufmat).diagonal().real
+        Sz = np.kron(0.5*s_z,s0)
         Sz = np.linalg.multi_dot([v.conjugate().transpose(),Sz,v])
-        Sz = Sz.diagonal().real
-        return [w,uf,Sx,Sy,Sz]
+        Sz = np.dot(Sz,ufmat).diagonal().real
+        del(s0)
+        del(ufmat)
+        return [w.copy(),uf.copy(),Sx.copy(),Sy.copy(),Sz.copy()]
 
     def Unfolding_band(self, k1, k2, n, num_print=False, eV=False, shift=False):
+        if (self.pm.mat_size > 2000):
+            gc.collect()
         ni = 1
         SP = self.pm.SpinP_switch
         path = kpath(k1,k2,n)
@@ -463,11 +489,14 @@ for Unfolding_spintexture")
             Wlists2 = np.array(Wlists2) 
             return [klist, Elists1, Wlists1, Elists2, Wlists2]
 
-    def Unfolding_spintexture_band(self, k1, k2, n, num_print=False, eV=False, shift=False):
+    def Unfolding_spintexture_band(self, k1, k2, n, num_print=False, eV=False, shift=False,\
+                                   method=1, sigma=0.004):
         SP = self.pm.SpinP_switch
         if (SP!=3):
             raise Exception("error: only spin non-collinear case is considered \
 for Unfolding_spintexture_band")
+        if (self.pm.mat_size > 2000):
+            gc.collect()
         ni = 1
         path = kpath(k1,k2,n)
         k = 0.0
@@ -485,7 +514,8 @@ for Unfolding_spintexture_band")
                 print("band %d/%d "%(ni,n))
                 sys.stdout.flush()
                 ni += 1
-            ST = self.Unfolding_spintexture(kvec, eV=eV, shift=shift)
+            ST = self.Unfolding_spintexture(kvec, eV=eV, shift=shift,\
+                                          method=method, sigma=sigma)
             Elists.append(ST[0])
             Wlists.append(ST[1])
             Sxlists.append(ST[2])
@@ -592,6 +622,55 @@ def intmap_sokhotski(banddat, kptfile=None, emin=-6., emax=6., NE=401, eta=0.02,
     np.savez(outfile+'.npz',\
              k=klist, E=evec, W=W, kticks=kticks, labels=labels)
     
+def intmap_gaussian(banddat, kptfile=None, emin=-6., emax=6., NE=401, sigma=0.01,\
+                    outfile='unfold_intmap_gaussian'): 
+    '''intensity map by gaussian function'''
+    data = np.loadtxt(banddat)
+    k0 = np.around(data[:,0], decimals=6)
+    E0 = np.around(data[:,1], decimals=6)
+    W0 = np.around(data[:,2], decimals=6)
+    klist = []
+    Elist = []
+    Wlist = []
+    Ndata = E0.shape[0]
+    d = 0.000001
+    i0 = 0
+    while (i0<Ndata):
+        k1 = k0[i0]
+        idv = np.where(np.abs(k0-k1)<d)[0]
+        klist.append(k1)
+        Elist.append(E0[idv])
+        Wlist.append(W0[idv])
+        i0 = idv[-1]+1
+    klist = np.array(klist)
+    
+    evec = np.linspace(emin,emax,NE)
+    W = []
+    for ee,ww in zip(Elist,Wlist):
+        wout = np.zeros(NE,dtype=float)
+        for e,w in zip(ee,ww):
+            wout += w*gaussian(evec, e, sigma)
+        W.append(wout)
+    W = np.array(W).transpose()
+    
+    kticks = []
+    labels = []
+    if kptfile is not None:
+        f = open(kptfile,'r')
+        lines = f.readlines()
+        f.close()
+        for line in lines:
+            spl = line.split()
+            if (len(spl)==1):
+                kticks.append(float(spl[0]))
+            elif (len(spl)==2):
+                kticks.append(float(spl[0]))
+                labels.append(spl[1])
+            else:
+                raise Exception("Error: wrong kpt file format in intmap_gaussian")
+    np.savez(outfile+'.npz',\
+             k=klist, E=evec, W=W, kticks=kticks, labels=labels)
+    
 def intmap_lorentzian(banddat, kptfile=None, emin=-6., emax=6., NE=401, dE=0.02,\
                      dk=0.0, pad=2, g=1., outfile='unfold_intmap_lorentzian'): 
     '''intensity map by Lorentzian function'''
@@ -636,7 +715,7 @@ def intmap_lorentzian(banddat, kptfile=None, emin=-6., emax=6., NE=401, dE=0.02,
                 kticks.append(float(spl[0]))
                 labels.append(spl[1])
             else:
-                raise Exception("Error: wrong kpt file format in intmap_sokhotski")
+                raise Exception("Error: wrong kpt file format in intmap_lorentzian")
 
     if (float(dk)==0.):
         W = []

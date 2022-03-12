@@ -7,6 +7,7 @@ from .pymx_common import *
 import numpy as np
 import sys
 import copy
+import gc
 
 ####### silence cython warnings ########
 import warnings
