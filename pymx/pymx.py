@@ -1225,50 +1225,94 @@ not compatible with memory_save=True")
             spin.append(np.array([SX,SY,SZ]))
         return [w,spin]
 
-    def Orbital_angular_momentum_onsite_mat(self, spin=False):
+    def Orbital_angular_momentum_onsite_mat(self, component=None, spin=False):
         N = self.mat_size
-        matx = np.zeros((N,N),dtype=complex)
-        maty = np.zeros((N,N),dtype=complex)
-        matz = np.zeros((N,N),dtype=complex)
         basis_list = copy.deepcopy(self.basis_list)
         orb_len = {'s':1, 'p':3, 'd':5, 'f':7}
-        i = 0
-        while(i<N):
-            orb = basis_list.pop(0).split('-')[-1][0]
-            ol = orb_len[orb]
-            if (orb=='s'):
-                pass
-            elif (orb=='p'):
-                matx[i:i+ol,i:i+ol] = Lpxr
-                maty[i:i+ol,i:i+ol] = Lpyr
-                matz[i:i+ol,i:i+ol] = Lpzr
-            elif (orb=='d'):
-                matx[i:i+ol,i:i+ol] = Ldxr
-                maty[i:i+ol,i:i+ol] = Ldyr
-                matz[i:i+ol,i:i+ol] = Ldzr
-            elif (orb=='f'):
-                matx[i:i+ol,i:i+ol] = Lfxr
-                maty[i:i+ol,i:i+ol] = Lfyr
-                matz[i:i+ol,i:i+ol] = Lfzr
-            else:
-                raise Exception("error in basis_list of Orbital_ang_mom_onsite_mat")
-            i += 1
-            for j in range(ol-1):
-                basis_list.pop(0)
+        if (component is None):
+            matx = np.zeros((N,N),dtype=complex)
+            maty = np.zeros((N,N),dtype=complex)
+            matz = np.zeros((N,N),dtype=complex)
+            i = 0
+            while(i<N):
+                orb = basis_list.pop(0).split('-')[-1][0]
+                ol = orb_len[orb]
+                if (orb=='s'):
+                    pass
+                elif (orb=='p'):
+                    matx[i:i+ol,i:i+ol] = Lpxr
+                    maty[i:i+ol,i:i+ol] = Lpyr
+                    matz[i:i+ol,i:i+ol] = Lpzr
+                elif (orb=='d'):
+                    matx[i:i+ol,i:i+ol] = Ldxr
+                    maty[i:i+ol,i:i+ol] = Ldyr
+                    matz[i:i+ol,i:i+ol] = Ldzr
+                elif (orb=='f'):
+                    matx[i:i+ol,i:i+ol] = Lfxr
+                    maty[i:i+ol,i:i+ol] = Lfyr
+                    matz[i:i+ol,i:i+ol] = Lfzr
+                else:
+                    raise Exception("error in basis_list of Orbital_ang_mom_onsite_mat")
                 i += 1
-        SP = self.SpinP_switch
-        if (SP==1):
-            if (spin == False):
+                for j in range(ol-1):
+                    basis_list.pop(0)
+                    i += 1
+            SP = self.SpinP_switch
+            if (SP==1):
+                if (spin == False):
+                    iden = np.identity(2,dtype=complex)
+                    matx = np.kron(iden,matx)
+                    maty = np.kron(iden,maty)
+                    matz = np.kron(iden,matz)
+            elif (SP==3):
                 iden = np.identity(2,dtype=complex)
                 matx = np.kron(iden,matx)
                 maty = np.kron(iden,maty)
                 matz = np.kron(iden,matz)
-        elif (SP==3):
-            iden = np.identity(2,dtype=complex)
-            matx = np.kron(iden,matx)
-            maty = np.kron(iden,maty)
-            matz = np.kron(iden,matz)
-        return [matx,maty,matz]
+            return [matx,maty,matz]
+        elif (component==0)or(component==1)or(component==2):
+            if (component==0):
+                Lpir = Lpxr.copy() 
+                Ldir = Ldxr.copy()
+                Lfir = Lfxr.copy()
+            if (component==1):
+                Lpir = Lpyr.copy()
+                Ldir = Ldyr.copy()
+                Lfir = Lfyr.copy()
+            if (component==2):
+                Lpir = Lpzr.copy()
+                Ldir = Ldzr.copy()
+                Lfir = Lfzr.copy()
+            mat = np.zeros((N,N),dtype=complex)
+            i = 0
+            while(i<N):
+                orb = basis_list.pop(0).split('-')[-1][0]
+                ol = orb_len[orb]
+                if (orb=='s'):
+                    pass
+                elif (orb=='p'):
+                    mat[i:i+ol,i:i+ol] = Lpir
+                elif (orb=='d'):
+                    mat[i:i+ol,i:i+ol] = Ldir
+                elif (orb=='f'):
+                    mat[i:i+ol,i:i+ol] = Lfir
+                else:
+                    raise Exception("error in basis_list of Orbital_ang_mom_onsite_mat")
+                i += 1
+                for j in range(ol-1):
+                    basis_list.pop(0)
+                    i += 1
+            SP = self.SpinP_switch
+            if (SP==1):
+                if (spin == False):
+                    iden = np.identity(2,dtype=complex)
+                    mat = np.kron(iden,mat)
+            elif (SP==3):
+                iden = np.identity(2,dtype=complex)
+                mat = np.kron(iden,mat)
+            return mat
+        else:
+            raise Exception("error: wrong component in Orbital_ang_mom_onsite_mat")
 
     def velocity_mat(self, k, bands, energy=False):
         expvec = self.exp_vec(k)
@@ -1328,6 +1372,6 @@ not compatible with memory_save=True")
         X = 2.*np.dot(vy*E,vz*E).imag.diagonal()
         Y = 2.*np.dot(vz*E,vx*E).imag.diagonal()
         Z = 2.*np.dot(vx*E,vy*E).imag.diagonal() 
-        return [X,Y,Z]
+        return [X.copy(),Y.copy(),Z.copy()]
  
 

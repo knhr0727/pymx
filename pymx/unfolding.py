@@ -50,6 +50,20 @@ def load_band(fname):
         EF     = f['EF'    ]
         f.close()
         return [[klist,Elists,Wlists,Sxlists,Sylists,Szlists],EF]
+    elif (ln==10):
+        klist  = f['klist' ]
+        Elists = f['Elists']
+        Wlists = f['Wlists']
+        Sxlists = f['Sxlists']
+        Sylists = f['Sylists']
+        Szlists = f['Szlists']
+        Oxlists = f['Oxlists']
+        Oylists = f['Oylists']
+        Ozlists = f['Ozlists']
+        EF     = f['EF'    ]
+        f.close()
+        return [[klist,Elists,Wlists,Sxlists,Sylists,Szlists,\
+                 Oxlists, Oylists, Ozlists,],EF]
     else:
         f.close()
         raise Exception("error : invalid input of save_band.")
@@ -62,9 +76,12 @@ def print_openmxstyle(ufbands, cut1, cut2, EF=0., fname='unfolded_bands_omx',\
         SP = 1 #spin collinear
     elif len(ufbands[0])==6:
         SP = 4 #spin texture
+    elif len(ufbands[0])==9:
+        SP = 5 #spin-orbit texture
     else:
         raise Exception("error : invalid input format in print_openmxstyle.\
- it must be a list of outputs of Unfolding_band or Unfolding_spintexture_band")
+ it must be a list of outputs of Unfolding_band, Unfolding_spintexture_band,\
+ or Unfolding_spinorbit_texture_band")
     Nb = len(ufbands)
     ticks = [0.]
     k0 = 0.
@@ -78,6 +95,14 @@ def print_openmxstyle(ufbands, cut1, cut2, EF=0., fname='unfolded_bands_omx',\
         f2 = open(fname+'.sx.dat','w')
         f3 = open(fname+'.sy.dat','w')
         f4 = open(fname+'.sz.dat','w')
+    elif (SP==5):
+        f1 = open(fname+'.dat','w')
+        f2 = open(fname+'.sx.dat','w')
+        f3 = open(fname+'.sy.dat','w')
+        f4 = open(fname+'.sz.dat','w')
+        f5 = open(fname+'.ox.dat','w')
+        f6 = open(fname+'.oy.dat','w')
+        f7 = open(fname+'.oz.dat','w')
     for j in range(Nb):
         k = ufbands[j][0]
         if (j==0):
@@ -126,6 +151,32 @@ def print_openmxstyle(ufbands, cut1, cut2, EF=0., fname='unfolded_bands_omx',\
                         f3.write(outstr)
                         outstr = "%.6f %.6f %.7f \n"%(kout,e,sz)
                         f4.write(outstr)
+            elif (SP==5):
+                E = ufbands[j][1][i,:]
+                E = (E-EF)*Hartree
+                W = ufbands[j][2][i,:]
+                Sx = ufbands[j][3][i,:]
+                Sy = ufbands[j][4][i,:]
+                Sz = ufbands[j][5][i,:]
+                Ox = ufbands[j][6][i,:]
+                Oy = ufbands[j][7][i,:]
+                Oz = ufbands[j][8][i,:]
+                for e,w,sx,sy,sz,ox,oy,oz in zip(E,W,Sx,Sy,Sz,Ox,Oy,Oz):
+                    if (cut1 <= e <= cut2):
+                        outstr = "%.6f %.6f %.7f \n"%(kout,e,w)
+                        f1.write(outstr)
+                        outstr = "%.6f %.6f %.7f \n"%(kout,e,sx)
+                        f2.write(outstr)
+                        outstr = "%.6f %.6f %.7f \n"%(kout,e,sy)
+                        f3.write(outstr)
+                        outstr = "%.6f %.6f %.7f \n"%(kout,e,sz)
+                        f4.write(outstr)
+                        outstr = "%.6f %.6f %.7f \n"%(kout,e,ox)
+                        f5.write(outstr)
+                        outstr = "%.6f %.6f %.7f \n"%(kout,e,oy)
+                        f6.write(outstr)
+                        outstr = "%.6f %.6f %.7f \n"%(kout,e,oz)
+                        f7.write(outstr)
         k0 = kout
         ticks.append(k0)
     if (SP==0):
@@ -138,6 +189,14 @@ def print_openmxstyle(ufbands, cut1, cut2, EF=0., fname='unfolded_bands_omx',\
         f2.close()
         f3.close()
         f4.close()
+    elif (SP==5):
+        f1.close()
+        f2.close()
+        f3.close()
+        f4.close()
+        f5.close()
+        f6.close()
+        f7.close()
     f = open(fname+".kpt",'w')
     if (labels is None):
         for k in ticks:
@@ -436,6 +495,61 @@ for Unfolding_spintexture")
         del(ufmat)
         return [w.copy(),uf.copy(),Sx.copy(),Sy.copy(),Sz.copy()]
 
+    def Unfolding_spinorbit_texture(self, k, spin=True, eV=False, shift=False,\
+                                    method=1, sigma=0.004):
+        SP = self.pm.SpinP_switch
+        if (spin and (SP!=3)):
+            raise Exception("error: only spin non-collinear case is considered \
+for spin-texture in Unfolding_spinorbit_texture")
+        h = self.pm.Hk_kvec(k)
+        s0 = self.pm.Sk_kvec(k, small=True)
+        ufmat = self.Unfold_mat(s0,k)
+        I = np.identity(2,dtype=complex)
+        ufmat = np.kron(I,ufmat)
+        s = np.kron(I,s0)
+        w,v = scipylinalg.eigh(h, s,\
+              overwrite_a=True, overwrite_b=True)
+        del(h)
+        del(s)
+        if shift:
+            w = w-self.pm.ChemP
+        if eV:
+            w *= Hartree
+        ufmat = np.linalg.multi_dot([v.conjugate().transpose(),ufmat,v])
+        if (method==1):
+            pass
+        elif (method==2): #unfolding density method gaussian broadening
+            ufmat = ufmat*gaussian_mat(w,sigma)
+        else:
+            raise Exception("error: wrong method in Unfolding_spinorbit_texture")
+        uf = np.abs(ufmat.diagonal().real)
+        Ox = self.pm.Orbital_angular_momentum_onsite_mat(component=0)
+        Ox = np.linalg.multi_dot([v.conjugate().transpose(),Ox,v])
+        Ox = np.dot(Ox,ufmat).diagonal().real
+        Oy = self.pm.Orbital_angular_momentum_onsite_mat(component=1)
+        Oy = np.linalg.multi_dot([v.conjugate().transpose(),Oy,v])
+        Oy = np.dot(Oy,ufmat).diagonal().real
+        Oz = self.pm.Orbital_angular_momentum_onsite_mat(component=2)
+        Oz = np.linalg.multi_dot([v.conjugate().transpose(),Oz,v])
+        Oz = np.dot(Oz,ufmat).diagonal().real
+        if (spin):
+            Sx = np.kron(0.5*s_x,s0)
+            Sx = np.linalg.multi_dot([v.conjugate().transpose(),Sx,v])
+            Sx = np.dot(Sx,ufmat).diagonal().real
+            Sy = np.kron(0.5*s_y,s0)
+            Sy = np.linalg.multi_dot([v.conjugate().transpose(),Sy,v])
+            Sy = np.dot(Sy,ufmat).diagonal().real
+            Sz = np.kron(0.5*s_z,s0)
+            Sz = np.linalg.multi_dot([v.conjugate().transpose(),Sz,v])
+            Sz = np.dot(Sz,ufmat).diagonal().real
+            del(s0)
+            del(ufmat)
+            return [w.copy(),uf.copy(),Sx.copy(),Sy.copy(),Sz.copy(),\
+                                       Ox.copy(),Oy.copy(),Oz.copy()]
+        else:
+            return [w.copy(),uf.copy(),Ox.copy(),Oy.copy(),Oz.copy()]
+                                       
+
     def Unfolding_band(self, k1, k2, n, num_print=False, eV=False, shift=False):
         if (self.pm.mat_size > 2000):
             gc.collect()
@@ -529,6 +643,57 @@ for Unfolding_spintexture_band")
         Sylists = np.array(Sylists) 
         Szlists = np.array(Szlists) 
         return [klist, Elists, Wlists, Sxlists, Sylists, Szlists]
+
+    def Unfolding_spinorbit_texture_band(self, k1, k2, n, num_print=False, \
+                             eV=False, shift=False, method=1, sigma=0.004):
+        SP = self.pm.SpinP_switch
+        if (SP!=3):
+            raise Exception("error: only spin non-collinear case is considered \
+for Unfolding_spinorbit_texture_band")
+        if (self.pm.mat_size > 2000):
+            gc.collect()
+        ni = 1
+        path = kpath(k1,k2,n)
+        k = 0.0
+        klist = []
+        Elists = []
+        Wlists = []
+        Sxlists = []
+        Sylists = []
+        Szlists = []
+        Oxlists = []
+        Oylists = []
+        Ozlists = []
+        kbefore = path[0]
+        for kvec in path:
+            k += np.linalg.norm(kvec-kbefore)
+            klist.append(k)
+            if num_print:
+                print("band %d/%d "%(ni,n))
+                sys.stdout.flush()
+                ni += 1
+            ST = self.Unfolding_spinorbit_texture(kvec, spin=True, \
+                     eV=eV, shift=shift, method=method, sigma=sigma)
+            Elists.append(ST[0])
+            Wlists.append(ST[1])
+            Sxlists.append(ST[2])
+            Sylists.append(ST[3])
+            Szlists.append(ST[4])
+            Oxlists.append(ST[5])
+            Oylists.append(ST[6])
+            Ozlists.append(ST[7])
+            kbefore = kvec
+        klist = np.array(klist)
+        Elists = np.array(Elists) 
+        Wlists = np.array(Wlists) 
+        Sxlists = np.array(Sxlists) 
+        Sylists = np.array(Sylists) 
+        Szlists = np.array(Szlists) 
+        Oxlists = np.array(Oxlists) 
+        Oylists = np.array(Oylists) 
+        Ozlists = np.array(Ozlists) 
+        return [klist, Elists, Wlists, Sxlists, Sylists, Szlists, \
+                                       Oxlists, Oylists, Ozlists]
     
     def save_band(self, ufband, fname='unfolded_band'):
         ln = len(ufband)
@@ -557,6 +722,20 @@ for Unfolding_spintexture_band")
             Szlists = ufband[5]
             np.savez(foutname, klist=klist, Elists=Elists, Wlists=Wlists,\
                      Sxlists=Sxlists, Sylists=Sylists, Szlists=Szlists,\
+                     EF=self.pm.ChemP)
+        elif (ln==9):
+            klist = ufband[0]
+            Elists = ufband[1]
+            Wlists = ufband[2]
+            Sxlists = ufband[3]
+            Sylists = ufband[4]
+            Szlists = ufband[5]
+            Oxlists = ufband[6]
+            Oylists = ufband[7]
+            Ozlists = ufband[8]
+            np.savez(foutname, klist=klist, Elists=Elists, Wlists=Wlists,\
+                     Sxlists=Sxlists, Sylists=Sylists, Szlists=Szlists,\
+                     Oxlists=Oxlists, Oylists=Oylists, Ozlists=Ozlists,\
                      EF=self.pm.ChemP)
         else:
             raise Exception("error : invalid input of save_band.")
@@ -800,21 +979,32 @@ def plot_intmap(intdat, figsize=None, norm='log', vmin=1., vmax=None,\
     plt.tight_layout()
     plt.show()
     
-def spin_rotation(ufband, X, Z):    
-    if len(ufband)!=6:
+def texture_rotation(ufband, X, Z):    
+    if (len(ufband)!=6)and((len(ufband)!=9)):
         raise Exception('error: input of spin_rotation should be \
-the output of Unfolding_spintexture_band')
-    klist, Elists, Wlists, Sxlists, Sylists, Szlists = ufband
+the output of Unfolding_spintexture_band or Unfolding_spinorbit_texture_band')
     cri = 1.e-9
     if (np.abs(np.dot(X,Z))>cri):
-        raise Exception('error: X and Z are not orthogonal in spin_rotation')
+        raise Exception('error: X and Z are not orthogonal in texture_rotation')
     x = X/np.linalg.norm(X)
     z = Z-x*np.dot(x,Z)
     z = z/np.linalg.norm(z)
     y = np.cross(z,x)
     y = y/np.linalg.norm(y)
-    Sx = Sxlists*x[0] + Sylists*x[1] + Szlists*x[2]
-    Sy = Sxlists*y[0] + Sylists*y[1] + Szlists*y[2]
-    Sz = Sxlists*z[0] + Sylists*z[1] + Szlists*z[2]
-    return [klist, Elists, Wlists, Sx, Sy, Sz]
+    if (len(ufband)==6):
+        klist, Elists, Wlists, Sxlists, Sylists, Szlists = ufband
+        Sx = Sxlists*x[0] + Sylists*x[1] + Szlists*x[2]
+        Sy = Sxlists*y[0] + Sylists*y[1] + Szlists*y[2]
+        Sz = Sxlists*z[0] + Sylists*z[1] + Szlists*z[2]
+        return [klist, Elists, Wlists, Sx, Sy, Sz]
+    if (len(ufband)==9):
+        klist, Elists, Wlists, Sxlists, Sylists, Szlists,\
+                               Oxlists, Oylists, Ozlists = ufband
+        Sx = Sxlists*x[0] + Sylists*x[1] + Szlists*x[2]
+        Sy = Sxlists*y[0] + Sylists*y[1] + Szlists*y[2]
+        Sz = Sxlists*z[0] + Sylists*z[1] + Szlists*z[2]
+        Ox = Oxlists*x[0] + Oylists*x[1] + Ozlists*x[2]
+        Oy = Oxlists*y[0] + Oylists*y[1] + Ozlists*y[2]
+        Oz = Oxlists*z[0] + Oylists*z[1] + Ozlists*z[2]
+        return [klist, Elists, Wlists, Sx, Sy, Sz, Ox, Oy, Oz]
     
